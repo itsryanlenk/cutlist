@@ -205,9 +205,9 @@ good, and two Lows plus eight smaller items, each now with a unit test:
 - ffmpeg's image muxer expands `%d` in an output path, so a bundle folder named `ep%d` put a
   frame into a sibling `ep1/`. Every image output now carries `-update 1`, which writes one
   file to the literal path.
-- A caption or plan file that is not a regular file (a symlink to a device, a pipe) reports
-  zero bytes and would have been read without end. Both loaders now require a regular file
-  and cap the read itself.
+- A symlink to a device, or a pipe, standing in for a caption or plan file reports zero
+  bytes and would have been read without end. Both loaders now require a regular file and
+  cap the read itself.
 - A failed or timed-out `ffmpeg` left its temp file behind, up to a partial encode; it is
   removed on every failure path. A directory where an output file should be, and junk in
   the audio cache, are clean exits instead of tracebacks; the cache is re-extracted.
