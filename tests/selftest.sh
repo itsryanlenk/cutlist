@@ -15,8 +15,8 @@ python3 -c "import PIL" 2>/dev/null && ok "pillow" || bad "pillow missing (pytho
 [ $fail -eq 0 ] || { echo "Fix the missing tools, then run again."; exit 1; }
 
 step "make test episode"; bash tests/make_test_episode.sh && ok "episode.mp4" || bad "make_test_episode"
-step "check_inputs";   out=$(python3 $S/check_inputs.py $E/episode.mp4 $E/captions.srt); echo "$out" | grep -q "SYNC: OK" && ok "sync" || bad "check_inputs"
-step "audio_energy";   out=$(python3 $S/audio_energy.py $E/episode.mp4 --top 5); echo "$out" | grep -q "02:30" && ok "loud run at 02:30 found" || bad "audio_energy"
+step "check_inputs";   if out=$(python3 $S/check_inputs.py $E/episode.mp4 $E/captions.srt) && echo "$out" | grep -q "SYNC: OK"; then ok "sync"; else bad "check_inputs"; fi
+step "audio_energy";   if out=$(python3 $S/audio_energy.py $E/episode.mp4 --top 5) && echo "$out" | grep -q "02:30"; then ok "loud run at 02:30 found"; else bad "audio_energy"; fi
 step "frames";         python3 $S/frames.py $E/episode.mp4 2:31 --range 2:25 2:45 --step 5 >/dev/null && [ -f $E/frames/contact_sheet.jpg ] && ok "contact sheet" || bad "frames"
 step "check_plan";     python3 $S/check_plan.py $E/clip_plan.json $E/episode.mp4 && ok "plan validates" || bad "check_plan"
 step "cut_previews";   python3 $S/cut_previews.py $E/episode.mp4 $E/clip_plan.json --vertical >/dev/null && [ "$(ls $E/previews/*.mp4 | wc -l)" -ge 10 ] && ok "previews" || bad "cut_previews"
@@ -30,7 +30,14 @@ p.write_text("WEBVTT\n\n00:00:01.000 --> 00:00:03.500\n<v Host>Hello there.\n\n0
 c = parse_captions(p); assert len(c) == 2 and c[0]["speaker"] == "Host" and c[1]["speaker"] == "Guest", c
 EOF
 
-step "unit tests";     python3 -m unittest discover -s tests >/dev/null 2>&1 && ok "hardening tests" || bad "hardening tests (run: python3 -m unittest discover -s tests -v)"
+step "unit tests";     LOG=$(mktemp)
+if python3 -m unittest discover -s tests -v >"$LOG" 2>&1; then
+  ran=$(grep -oE 'Ran [0-9]+ tests' "$LOG" || true); skipped=$(grep -c "skipped" "$LOG" || true)
+  ok "hardening tests ($ran, $skipped skipped)"
+else
+  tail -40 "$LOG"; bad "hardening tests (see above)"
+fi
+rm -f "$LOG"
 
 step "cleanup"; rm -rf $E/previews $E/frames $E/energy.csv $E/episode.16k.wav $E/episode.mp4 $E/segments.csv $E/transcript_compact.txt $E/thumb_source_frame.jpg
 printf '\nRESULT: %d pass, %d fail\n' $pass $fail

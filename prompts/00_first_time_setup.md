@@ -10,6 +10,7 @@ Read skills/cutlist/SKILL.md.
 2. Run: bash tests/selftest.sh
    Show me the RESULT line. If anything fails, show me the error before changing anything.
 3. Then run the setup workflow in skills/cutlist/references/setup-profile.md
-   and write channel/channel_profile.md from my answers.
+   and write channel/channel_profile.md from my answers. I will tell you which recorder
+   and which editor I use; write the export and cut steps for those tools into the profile.
 Do not modify files under skills/ unless a script fails on this machine.
 ```

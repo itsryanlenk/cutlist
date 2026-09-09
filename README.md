@@ -1,11 +1,15 @@
-[![Cutlist: transcript-first clip planning, metadata, and thumbnail mockups for video podcasts, for any AI coding agent](.github/media/banner.png)](https://ryanlenk.com/pages/cutlist)
+[![Cutlist: transcript-first clip planning, metadata, and thumbnail mockups for long videos, for any AI coding agent, any recorder, any editor](.github/media/banner.png)](https://ryanlenk.com/pages/cutlist)
 
 # Cutlist
 
-One skill, any agent. Give it one episode (the video and its captions) and it returns 5 to 8
+One skill, any agent, any long video. Give it the video and its captions (a podcast, an
+interview, a webinar, a lecture, a tutorial, a stream VOD, a keynote) and it returns 5 to 8
 vertical clips with exact cut times, a title, description, hashtags, tags, and category for
-the episode and every clip, a cold-open pick, and one thumbnail mockup that matches the
+the video and every clip, a cold-open pick, and one thumbnail mockup that matches the
 first 10 seconds, the title, and the description. You cut in your editor. You publish.
+
+Any recorder, any editor. The first run asks which ones you use and writes the export and
+cut steps for them into your profile; after that, nothing names a tool you do not have.
 
 It follows the open [Agent Skills](https://agentskills.io) format, so the same folder works
 in Claude Code, OpenAI Codex, Cursor, Gemini CLI, and GitHub Copilot, and the paste-ready
@@ -45,6 +49,22 @@ are in `docs/DECISIONS.md`. Windsurf had no first-party page that day. Paths dri
 agent versions. If your agent does not see the skill, copy `skills/cutlist/` to the path in
 its documentation and restart it.
 
+## Any recorder, any editor
+
+The first run asks which recorder produces your video and captions and which editor you
+cut in, then copies the matching steps into your profile. The reference behind it,
+`skills/cutlist/references/tools.md`, was checked against vendor documentation on
+2026-09-09 for these tools. One not listed gets five questions at setup instead.
+
+| Recorders | Editors |
+| --- | --- |
+| Riverside, Descript, Zoom cloud recording, StreamYard, SquadCast, Zencastr, OBS or a camera plus Otter or Whisper, YouTube's own captions | Adobe Premiere Pro, DaVinci Resolve (free and Studio), Final Cut Pro, CapCut, Descript, iMovie, Kdenlive |
+
+For each one: how to export the video and the captions from the same place, whether it has
+live markers and which key, how to jump to a time and split, how to make a 9:16 clip, and
+how to add or export captions. A fact a vendor's pages did not state is marked as such, and
+when your tool behaves differently, your word wins and goes into the profile.
+
 ## Install
 
 ```bash
@@ -70,23 +90,25 @@ No API key, no account, no server. Nothing here talks to the network.
 
 ![Five steps: record with markers, export video and captions from the same place, the agent plans, you cut in your editor, you publish from the checklist](.github/media/how-it-works.png)
 
-1. **Record.** Drop a marker when a good moment happens (Riverside: press M). Get the guest's
-   name spelling and links before you stop.
+1. **Record.** If your recorder has live markers, drop one when a good moment happens. If
+   there is a guest, get their name spelling and links before you stop.
 2. **Export two files from the same place.** The video as MP4 and the captions as SRT or VTT,
-   both raw or both from the edited timeline. `skills/cutlist/references/recorders.md` covers
-   Riverside, Descript, Zoom, Premiere, Resolve, Whisper, and YouTube's own captions.
+   both raw or both from the edited timeline. Your profile carries the export steps for your
+   recorder; `skills/cutlist/references/tools.md` is where they come from.
 3. **Plan.** Put the files in `episodes/<id>/` with a `notes.md`, open the folder in your
    agent, and say "clip plan for episodes/<id>". The agent checks that the captions and the
    video line up (over 3 seconds apart and it stops), reads the whole transcript, scores
    candidates, confirms with audio energy and still frames, writes the plan, validates it,
    and cuts rough previews for you to watch.
-4. **Cut.** In your editor, go to each start time, split, go to the end time, split, keep the
-   range, 9:16, captions on, export. Put the cold open at 00:00 of the full episode.
+4. **Cut.** In your editor, with the recipe your profile holds for it: jump to each start
+   time, split, jump to the end time, split, keep the range, go 9:16, captions on, export.
+   Put the cold open at 00:00 of the full video.
 5. **Publish** from `CHECKLIST.md`. Every field is in `clip_plan.md`, ready to paste.
 
-`QUICKSTART.md` is the one-page version. The first run asks ten questions and writes
-`channel/channel_profile.md`, which is the one file you edit by hand and the file that
-overrides every default.
+`QUICKSTART.md` is the one-page version. The first run asks thirteen questions, including
+which recorder and which editor you use and whether a person is on camera, and writes
+`channel/channel_profile.md`. That is the one file you edit by hand, and it overrides every
+default: the export steps, the cut recipe, the title formulas, the hashtag pool.
 
 ## What you get back
 
@@ -108,9 +130,10 @@ A thumbnail must describe three things at once: the first 10 seconds of the vide
 title, and the first line of the description. If the three disagree, the viewer clicks on one
 promise and gets another, and that is a bounce. So the clip plan picks a cold-open sentence
 first, and the title, the description, and the thumbnail all describe it. Four more
-constraints sit on top: 4 words or fewer, readable at 320 pixels wide, a real expressive
-face from a real frame, and a promise the first 10 seconds pay off. `thumbnail_mockup.py`
-writes the 320-pixel preview so you can check the second one yourself.
+constraints sit on top: 4 words or fewer, readable at 320 pixels wide, a real frame from the
+video (an expressive face when someone is on camera, the strongest screen detail when not),
+and a promise the first 10 seconds pay off. `thumbnail_mockup.py` writes the 320-pixel
+preview so you can check the second one yourself.
 
 ## Why transcript first
 
@@ -142,8 +165,8 @@ skills/cutlist/
   references/clip-plan.md           the clipping workflow: scoring rubric, cut rules, metadata rules
   references/thumbnail-trifecta.md  one mockup that matches cold open, title, description
   references/retitle-backlog.md     one title formula per series for a back catalog
-  references/setup-profile.md       the ten-question onboarding
-  references/recorders.md           how to export captions from common tools
+  references/setup-profile.md       the onboarding: channel, recorder, editor, on camera or not
+  references/tools.md               recorders and editors: export, markers, jump, split, 9:16, captions
   references/output-schema.md       the clip_plan.json contract
   scripts/                          seven Python scripts, standard library plus Pillow
   assets/                           templates for the profile, notes, markers, plan, backlog

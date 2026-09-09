@@ -17,7 +17,7 @@ $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 # Exactly one skill folder ships under skills\. Refuse to run unless it is real: an empty slug
 # would make the destination the skills root itself, and removing that deletes every installed skill.
 $skillDir = Get-ChildItem -Directory (Join-Path $here "skills") -ErrorAction SilentlyContinue | Select-Object -First 1
-if (-not $skillDir -or -not (Test-Path (Join-Path $skillDir.FullName "SKILL.md"))) {
+if (-not $skillDir -or -not (Test-Path (Join-Path $skillDir.FullName "SKILL.md") -PathType Leaf)) {
   Write-Host "No skill found under $here\skills\ (expected skills\<slug>\SKILL.md). Nothing installed."
   exit 1
 }

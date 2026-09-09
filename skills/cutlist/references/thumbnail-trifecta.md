@@ -38,14 +38,24 @@ Pull frames from the 20 seconds around the cold open, two seconds apart:
 python3 $SKILL/scripts/frames.py episodes/<id>/episode.mp4 --range <cold_open_start - 5 s> <cold_open_end + 5 s> --step 2 --cols 5
 ```
 
-Open `frames/contact_sheet.jpg` with view_image. Choose the frame where:
+Open `frames/contact_sheet.jpg` with view_image. The profile's Tools section says whether a
+person is on camera.
+
+When someone is on camera, choose the frame where:
 
 - the person who says the cold-open line is on camera,
 - eyes are open and the face is expressive (mid-word is fine, a closed-eye blink is not),
 - the face sits on the left or right third, leaving room for text on the other side,
 - nothing ugly is in the frame (hands blocking the face, an overlay, a glitch).
 
-Record `frame_time` and which side the face is on. Text goes on the opposite side.
+When the video is a screen, slides, or gameplay, choose the frame where:
+
+- the picture shows the thing the cold-open sentence is about (the result, the diagram,
+  the play), so the words and the image make one promise,
+- the strongest detail sits on the left or right third, leaving room for text,
+- nothing in the frame is a loading state, a blank slide, or a cursor mid-drag.
+
+Record `frame_time` and which side the subject is on. Text goes on the opposite side.
 
 ## Step 3. Render the mockup
 
@@ -64,7 +74,7 @@ The creator rebuilds the mockup in their design tool. Give them exactly this:
 ```
 # Thumbnail brief - <episode id>
 
-Frame: <frame_time> (file: frames/f_<time>.jpg). Face on the <left|right>.
+Frame: <frame_time> (file: frames/f_<time>.jpg). Subject (face or screen detail) on the <left|right>.
 Text: <the words> (uppercase, 2 lines max, on the <side>).
 Style: white bold sans, thick black outline, accent bar under the text.
 Darken the text side about 60 percent so the words read at small size.
@@ -87,6 +97,7 @@ and run `python3 $SKILL/scripts/check_plan.py` again. It fails if any of the thr
 
 ## What this skill does not do
 
-- No AI-generated faces. The frame is always a real frame of the host or the guest.
+- No AI-generated faces or scenes. The frame is always a real frame from the video: the
+  host, the guest, or the screen they were showing.
 - No second mockup. One image, one promise. If the creator wants variants, they ask.
 - No claims in the text that the episode does not pay off in the first 10 seconds.

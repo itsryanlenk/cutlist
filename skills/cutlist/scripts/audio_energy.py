@@ -27,7 +27,7 @@ import wave
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _common import FF_IN, fmt_mmss, media_path, probe, require_tool, run  # noqa: E402
+from _common import FF_IN, fmt_mmss, media_path, probe, require_tool, run, utf8_stdout  # noqa: E402
 
 MAX_HOURS_DEFAULT = 6.0  # a 16 kHz mono WAV is about 115 MB per hour beside the creator's video
 
@@ -87,6 +87,7 @@ def main():
     ap.add_argument("--max-hours", type=float, default=MAX_HOURS_DEFAULT,
                     help="refuse media longer than this (default %.0f h); raise it on purpose for a marathon" % MAX_HOURS_DEFAULT)
     args = ap.parse_args()
+    utf8_stdout()
 
     video = Path(args.video)
     if not video.exists():

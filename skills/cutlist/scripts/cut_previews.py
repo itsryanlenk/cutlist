@@ -15,15 +15,28 @@ Usage
 """
 
 import argparse
-import json
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _common import FF_IN, fmt_mmss, media_path, parse_time, require_tool, run  # noqa: E402
+from _common import FF_IN, fmt_mmss, load_plan, media_path, parse_time, probe, require_tool, run, utf8_stdout  # noqa: E402
 
 ITEM_LIMIT = 20
 CLIP_MAX_S = 60.0
+ORDER_MAX = 999
+
+
+def _order(clip):
+    """publish_order (or rank) as a whole number from 1 to ORDER_MAX. It names a file."""
+    v = clip.get("publish_order", clip.get("rank"))
+    if isinstance(v, bool) or not isinstance(v, int):
+        try:
+            v = int(str(v).strip())
+        except (TypeError, ValueError):
+            raise ValueError("publish_order must be a whole number from 1 to %d" % ORDER_MAX)
+    if not 1 <= v <= ORDER_MAX:
+        raise ValueError("publish_order must be a whole number from 1 to %d" % ORDER_MAX)
+    return v
 
 
 def plan_items(plan, force=False):
@@ -33,8 +46,7 @@ def plan_items(plan, force=False):
     if co:
         items.append(("cold_open", parse_time(co["start"]), parse_time(co["end"])))
     for c in plan.get("clips", []):
-        name = "clip_%02d" % int(c.get("publish_order", c.get("rank", 0)))
-        items.append((name, parse_time(c["start"]), parse_time(c["end"])))
+        items.append(("clip_%03d" % _order(c), parse_time(c["start"]), parse_time(c["end"])))
     for name, s, e in items:
         if e <= s:
             raise ValueError("%s ends before it starts (%s to %s)" % (name, fmt_mmss(s), fmt_mmss(e)))
@@ -62,13 +74,17 @@ def main():
     ap.add_argument("--vertical", action="store_true", help="also write 9:16 center-crop previews")
     ap.add_argument("--force", action="store_true", help="cut even if the plan is oversized")
     args = ap.parse_args()
+    utf8_stdout()
     require_tool("ffmpeg")
 
     video = Path(args.video)
-    plan = json.loads(Path(args.plan).read_text(encoding="utf-8"))
+    if not video.exists():
+        sys.exit("File not found: %s" % video)
+    probe(video)  # refuses playlist formats before any cut
     try:
+        plan = load_plan(args.plan)
         items = plan_items(plan, force=args.force)
-    except (KeyError, ValueError) as exc:
+    except (OSError, KeyError, TypeError, ValueError) as exc:
         sys.exit("Bad plan: %s" % exc)
     out_dir = video.parent / "previews"
     out_dir.mkdir(exist_ok=True)

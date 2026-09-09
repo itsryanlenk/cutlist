@@ -12,14 +12,26 @@ Created by the cutlist setup workflow. Nothing here is required to be public.
 
 ## Series on this channel
 
-1. [Interview podcast]: [length], recorded on [tool]. This is what the clipper is for.
-2. [Solo vlog / tutorial]: [length]. Too short to clip; title and thumbnail rules only.
+1. [Interview podcast / lecture / webinar / stream / keynote]: [length]. This is what gets clipped.
+2. [Solo vlog / short tutorial]: [length]. Too short to clip; title and thumbnail rules only.
+
+## Tools (filled at setup from references/tools.md; the agent reads this, not the reference)
+
+- Recorder: [ ]
+- Editor: [ ]
+- On camera: [a person for most of the video / mostly screen, slides, or gameplay]
+- Export rule: download the video (MP4) and the captions (SRT or VTT) from [where], both raw
+  or both from the edited timeline. [Recorder-specific steps]
+- Live markers: [none / key or button, and where the times show up afterward]
+- Cut recipe in [editor]: jump to a time with [ ], split at the playhead with [ ], keep the
+  range, [how to make it 9:16], [how to add captions], export.
+- Cold open: place the cold-open range at 00:00 of the full video with [ ].
 
 ## Format
 
-- Host: [name as it should appear]. Guest: one per episode.
+- Host: [name as it should appear]. Other speakers: [one guest per video / none / panel].
 - Speaker labels in the caption files: [ ] (write the exact labels the recorder uses)
-- Guest name and links go in `episodes/<id>/notes.md` for each episode.
+- Guest name and links, when there is one, go in `episodes/<id>/notes.md`.
 
 ## Tone
 

@@ -10,12 +10,46 @@ examples/_example/energy.csv
 examples/_example/segments.csv
 examples/_example/transcript_compact.txt
 examples/_example/thumb_source_frame.jpg
+
+# files the scripts write, anywhere a creator might run them
+transcript_compact.txt
+segments.csv
+energy.csv
+markers.txt
+previews/
+frames/
+thumb_source_frame.jpg
+*.16k.wav
+thumb_mock*.png
+!examples/_example/thumb_mock.png
+!examples/_example/thumb_mock_feed_320.png
+
+# media, in every format a recorder or editor exports
 *.mp4
 *.mov
+*.m4v
+*.mkv
+*.webm
+*.avi
 *.wav
+*.mp3
+*.m4a
+*.aac
+*.flac
 *.srt
 *.vtt
 !examples/_example/captions.srt
+
+# what the installers write when run inside a clone without --into or --global
+.agents/
+.claude/
+.cursor/
+.gemini/
+.copilot/
+.windsurf/
+.github/skills/
+
 __pycache__/
 *.pyc
 .DS_Store
+Thumbs.db

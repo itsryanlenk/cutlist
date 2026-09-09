@@ -1,6 +1,7 @@
 # Episode notes - <episode id>
 
-Guest: <full name>
+Kind of video: <interview / lecture / webinar / stream / keynote / vlog>
+Guest: <full name, or "solo">
 Guest product: <name> <url>
 Guest X: @<handle>
 Guest other links: <url>

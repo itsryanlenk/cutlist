@@ -1,6 +1,6 @@
 {
   "name": "cutlist",
-  "description": "Transcript-first clip planning, metadata, and thumbnail mockups for video podcasts.",
+  "description": "Transcript-first clip planning, metadata, and thumbnail mockups for long videos: podcasts, interviews, webinars, lectures, tutorials, and streams. Any agent, any recorder, any editor.",
   "version": "0.1.0",
   "author": { "name": "Ryan Lenk" },
   "homepage": "https://github.com/itsryanlenk/cutlist",

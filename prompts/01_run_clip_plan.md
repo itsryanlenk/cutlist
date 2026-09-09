@@ -7,7 +7,7 @@ Folder must contain: `episodes/<id>/episode.mp4`, `episodes/<id>/captions.srt` (
 Read skills/cutlist/SKILL.md, then follow references/clip-plan.md.
 
 Episode folder: episodes/<id>
-Guest: <name>
+Guest: <name, or "solo">
 Both files are from the <raw recording | edited export>.
 
 I want 5 to 8 clips of 15 to 30 seconds in publish order, each with title, description,

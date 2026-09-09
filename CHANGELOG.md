@@ -18,6 +18,8 @@ First public release.
 - A thirteen-check self-test that builds a synthetic episode and runs every script. It runs in
   CI on Ubuntu.
 - Paste-ready prompts for agents with no skill support, and a per-episode publish checklist.
-- Input limits from a pre-release security review, each with a unit test: finite times only,
-  caption size and cue caps, control-character stripping, frame and preview caps, and
-  installers that refuse to run without a real skill folder. Reasons in `docs/DECISIONS.md`.
+- Input limits from three pre-release security reviews, each with a unit test: finite and
+  bounded times, caption and plan size caps, invisible-character stripping by Unicode
+  category, frame and preview caps, playlist refusal, programs and fonts never resolved from
+  the working folder, writes confined to the episode folder, and installers that refuse to
+  run without a real skill folder. Reasons in `docs/DECISIONS.md`.

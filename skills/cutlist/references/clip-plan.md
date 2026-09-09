@@ -5,9 +5,16 @@ Transcript first. Audio and frames confirm. Your judgment decides.
 
 ## Step 0. Read context
 
-1. `channel/channel_profile.md` (audience, tone, title formulas, links, hashtag pool, category default).
+1. `channel/channel_profile.md` (audience, tone, title formulas, links, hashtag pool, category
+   default, and the Tools section: which recorder and editor the creator uses, whether a
+   person is on camera, and the export and cut recipes written at setup). Every instruction
+   you give the creator about exporting or cutting uses the tools named there.
 2. `episodes/<id>/notes.md` and `episodes/<id>/markers.txt` if present. Markers are the creator's
    live "this was good" flags. Treat each one as a lead you must check, not a decision.
+
+The video can be anything long with captions: a podcast, an interview, a webinar, a lecture, a
+tutorial, a stream VOD, a keynote, a vlog. The rules below are the same for all of them. Where
+a rule mentions a guest or a face, it applies when there is one.
 
 ## Step 1. Check inputs
 
@@ -48,7 +55,10 @@ Loud runs are leads. A laugh with nothing said is not a clip.
 | One idea | Exactly one point, one payoff | Two points | Rambles |
 | Payoff | Ends on a punchline, answer, or instruction | Ends fine | Trails off |
 | Energy | Laugh, emphasis, or loud run confirms | Neutral | Flat |
-| Guest value | Guest says the important part | Shared | Host only (allowed, but cap at 2 of these) |
+| Speaker value (two or more speakers only) | The guest or the expert says the important part | Shared | Host only (allowed, but cap at 2 of these) |
+
+With one speaker (a lecture, a tutorial, a solo vlog, a keynote), skip the last row and keep
+8 or better out of 10.
 
 Automatic reject: "as I said earlier", inside jokes, crosstalk, dead air over 1.5 s inside the
 clip, anything that could be read as a promise of results ("you will make $X").
@@ -66,9 +76,12 @@ Check the picture:
 python3 $SKILL/scripts/frames.py episodes/<id>/episode.mp4 <start of each keeper> --cols 4
 ```
 
-Open `frames/contact_sheet.jpg` with view_image. Reject a clip if the speaker is off camera,
-the frame is a glitch, or the face is hidden. Note in `trim_notes` which speaker should fill
-the vertical frame ("speaker focus: guest").
+Open `frames/contact_sheet.jpg` with view_image. When a person is on camera, reject a clip if
+the speaker is off camera, the frame is a glitch, or the face is hidden, and note in
+`trim_notes` which speaker should fill the vertical frame ("speaker focus: guest"). When the
+video is a screen, slides, or gameplay, reject a clip whose picture shows nothing for the
+words (a blank slide, a loading screen) and note what the vertical frame should hold
+("frame focus: the code editor, top half").
 
 ## Step 5. Pick the cold open and the thumbnail concept
 

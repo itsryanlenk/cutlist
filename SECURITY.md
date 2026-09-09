@@ -36,11 +36,13 @@ untrusted text, so it is treated as untrusted too.
 
 | Input | Read by | Guards in code |
 | --- | --- | --- |
-| The video | `ffprobe` and `ffmpeg`, as argument lists, no shell | Absolute paths so a name cannot read as an option. `-protocol_whitelist file` so a playlist inside the media cannot reach the network. `audio_energy.py` refuses media over 6 hours unless told otherwise and caps the extract to that length. `frames.py` refuses more than 80 frames before it allocates anything. `cut_previews.py` refuses more than 20 items or a clip over 60 seconds without `--force`. |
-| The captions | `parse_captions` in `_common.py` | Files over 50 MB are refused. Each cue is cut at 2,000 characters. Tag stripping is bounded so an unclosed `<` run stays linear. ANSI escapes, C0 and C1 control characters, zero-width characters, bidi overrides, and byte-order marks are removed. UTF-16 files are decoded instead of reported as empty. Cells that a spreadsheet would run as a formula are quoted in `segments.csv`. |
-| The plan | `check_plan.py`, `cut_previews.py` | Every time value must be a finite, non-negative number. `nan`, `inf`, and negatives fail validation and never reach `ffmpeg`. |
-| `--text`, `--tag`, `--out` | `thumbnail_mockup.py` | Text is drawn by Pillow and never reaches a shell or a filter graph. The script refuses to write over its own `--frame` or `--video`. |
-| The repository itself | `install.sh`, `install.ps1` | Both refuse to run unless `skills/<slug>/SKILL.md` exists, so the only folder they ever remove is the one skill folder they own. |
+| The video | `ffprobe` and `ffmpeg`, as argument lists, no shell | Absolute paths so a name cannot read as an option. `-protocol_whitelist file` so nothing inside the media can reach the network. Playlist and index formats (HLS, DASH, concat, SDP) are refused by their `ffprobe` format name, and a playlist renamed to look like a video fails `ffprobe`'s own detection; every script probes before it cuts. `audio_energy.py` refuses media over 6 hours unless told otherwise and caps the extract to that length. `frames.py` counts before it allocates, refuses more than 80 frames, and generates times by index, so a huge time cannot stall an accumulating loop. `cut_previews.py` refuses more than 20 items or a clip over 60 seconds without `--force`. Every `ffmpeg` call has a timeout. |
+| The captions | `parse_captions` in `_common.py` | Files over 50 MB are refused. Each cue is cut at 2,000 characters. Tag stripping is bounded so an unclosed `<` run stays linear. ANSI escapes, C0 and C1 control characters, and every Unicode format, control, private-use, and surrogate character (zero-width joiners, bidi overrides, soft hyphens, the tag block used to smuggle text past a reader), plus variation selectors and Hangul fillers, are removed before anything else reads the text. UTF-16 files are decoded instead of reported as empty. Cells that a spreadsheet would run as a formula are quoted in `segments.csv`. Speaker labels that name a chat role (`SYSTEM`, `assistant`) are flagged. |
+| The plan | `load_plan` in `_common.py`, then `check_plan.py` and `cut_previews.py` | Files over 5 MB are refused. The plan must be an object with an object `episode` and a list of object `clips`. Every time value must be finite, non-negative, and under hour 100; `nan`, `inf`, and negatives fail validation and never reach `ffmpeg`. `publish_order` must be a whole number from 1 to 999 because it names a file. A wrong type anywhere is a `FAIL` line, never a traceback. |
+| `--text`, `--tag`, `--out` | `thumbnail_mockup.py` | Text is drawn by Pillow and never reaches a shell or a filter graph. The script writes only inside the episode folder, never creates folders, and refuses to write over its own `--frame` or `--video`. |
+| Programs and fonts | every script | `ffmpeg` and `ffprobe` are resolved by walking `PATH` and skipping the working folder, so a program file dropped into the episode folder is never what runs (Windows would otherwise search the working folder first). Fonts are loaded from the system font folders only, never by a bare name that Pillow would try against the working folder first. |
+| The console | every script | Output is written as UTF-8 whatever the console code page, so a speaker name outside it cannot end a run half way. `check_inputs.py` writes its files only after the sync verdict. |
+| The repository itself | `install.sh`, `install.ps1`, `rebrand.py` | The installers refuse to run unless `skills/<slug>/SKILL.md` exists as a file, so the only folder they ever remove is the one skill folder they own. `rebrand.py` rewrites only files whose real location is inside the repository, so a junction or symlink cannot lead it out. |
 
 ## The caption file is a prompt-injection surface
 
@@ -55,13 +57,17 @@ instructions lives in `SKILL.md` and in the model that reads it.
 So treat a caption file from a source you do not control the way you would treat any file
 you hand to a tool that runs on your laptop. Read the `check_inputs.py` output, read its
 `NOTE` lines, watch the previews, and read the plan before you cut anything. The skill
-never publishes, which bounds the damage: the worst a hostile caption can do through the
-agent is write a bad plan into the episode folder for you to reject.
+never publishes, which bounds what a bad plan can do. It does not bound what the agent
+itself can do with a shell, which is why the whole export bundle is treated as hostile:
+nothing in the episode folder is ever executed or parsed as a program or a font, and the
+scripts write only inside that folder.
 
 ## In scope
 
 - A media file or a caption file of realistic size that makes a script crash, hang, or
   consume unbounded memory or disk.
+- A file placed in the episode folder that a script executes, or parses as a program or a
+  font, in place of the real one.
 - Any write outside the episode folder a script was given, and any overwrite of the
   creator's video, captions, or a frame passed with `--frame`.
 - A filename, timestamp, `--text`, `--tag`, or plan value that reaches a shell, an `ffmpeg`

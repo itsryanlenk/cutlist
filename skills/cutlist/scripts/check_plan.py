@@ -17,13 +17,13 @@ Usage
 Exit code 0 = pass (warnings allowed). Exit code 1 = fail.
 """
 
-import json
+import math
 import re
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _common import parse_time, probe  # noqa: E402
+from _common import load_plan, parse_time, probe, utf8_stdout  # noqa: E402
 
 CATEGORIES = {
     "1": "Film & Animation", "2": "Autos & Vehicles", "10": "Music", "15": "Pets & Animals",
@@ -108,15 +108,36 @@ def check_meta(label, obj):
             label, cat, ", ".join("%s=%s" % kv for kv in CATEGORIES.items())))
 
 
+def report(clips):
+    for w in warns:
+        print("WARN  " + w)
+    for f in fails:
+        print("FAIL  " + f)
+    print("RESULT: %d fail, %d warn, %d clips" % (len(fails), len(warns), len(clips)))
+    sys.exit(1 if fails else 0)
+
+
 def main(argv):
+    utf8_stdout()
     if len(argv) < 2:
         sys.exit(__doc__)
-    plan_path = Path(argv[1])
-    plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    try:
+        plan = load_plan(argv[1])
+    except (OSError, ValueError) as exc:
+        fail("plan: %s" % exc)
+        report([])
     duration = None
     if len(argv) > 2 and Path(argv[2]).exists():
         duration = probe(argv[2])["duration"]
+    try:
+        check(plan, duration)
+    except (AttributeError, KeyError, TypeError, ValueError) as exc:
+        # A wrong type somewhere in the plan is a failed check, never a traceback.
+        fail("plan: unexpected value (%s: %s)" % (type(exc).__name__, exc))
+    report(plan.get("clips", []))
 
+
+def check(plan, duration):
     ep = plan.get("episode", {})
     if not ep:
         fail("plan has no 'episode' block")
@@ -177,8 +198,15 @@ def main(argv):
                 label, d, CLIP_TARGET_MIN, CLIP_TARGET_MAX))
         if duration and e > duration + 0.5:
             fail("%s: ends at %.1f s but the video is %.1f s long" % (label, e, duration))
-        if "duration_s" in c and abs(float(c["duration_s"]) - d) > 0.6:
-            warn("%s: duration_s says %.1f but start/end give %.1f" % (label, float(c["duration_s"]), d))
+        if "duration_s" in c:
+            try:
+                ds = float(c["duration_s"])
+            except (TypeError, ValueError):
+                ds = None
+            if ds is None or not math.isfinite(ds):
+                fail("%s: duration_s is not a number" % label)
+            elif abs(ds - d) > 0.6:
+                warn("%s: duration_s says %.1f but start/end give %.1f" % (label, ds, d))
         for (s2, e2, j) in spans:
             if s < e2 and s2 < e:
                 fail("%s overlaps clip %d" % (label, j))
@@ -189,15 +217,8 @@ def main(argv):
             warn("%s: no 'why' (one line on why this moment earns a clip)" % label)
         orders.append(c.get("publish_order"))
         check_meta(label, c)
-    if orders and (None in orders or len(set(orders)) != len(orders)):
+    if orders and (None in orders or len(set(map(str, orders))) != len(orders)):
         fail("publish_order must be present and unique on every clip")
-
-    for w in warns:
-        print("WARN  " + w)
-    for f in fails:
-        print("FAIL  " + f)
-    print("RESULT: %d fail, %d warn, %d clips" % (len(fails), len(warns), len(clips)))
-    sys.exit(1 if fails else 0)
 
 
 if __name__ == "__main__":

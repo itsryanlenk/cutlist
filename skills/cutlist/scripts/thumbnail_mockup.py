@@ -26,7 +26,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _common import FF_IN, media_path, parse_time, require_tool, run  # noqa: E402
+from _common import FF_IN, find_font, media_path, parse_time, probe, require_tool, run, utf8_stdout  # noqa: E402
 
 try:
     from PIL import Image, ImageDraw, ImageFont
@@ -34,22 +34,22 @@ except ImportError:
     sys.exit("Pillow is not installed. Run: python3 -m pip install pillow")
 
 W, H = 1280, 720
-FONT_CANDIDATES = [
-    "Impact.ttf", "impact.ttf", "/System/Library/Fonts/Supplemental/Impact.ttf",
-    "C:/Windows/Fonts/impact.ttf", "Arial Bold.ttf", "arialbd.ttf",
-    "/System/Library/Fonts/Supplemental/Arial Bold.ttf", "C:/Windows/Fonts/arialbd.ttf",
-    "/Library/Fonts/Arial Bold.ttf", "DejaVuSans-Bold.ttf",
-    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-]
+# Bare names are looked up in the system font folders only (see find_font), never in the
+# working folder, so a font file among the creator's inputs is never parsed.
+FONT_CANDIDATES = ["impact.ttf", "Impact.ttf", "arialbd.ttf", "Arial Bold.ttf",
+                   "DejaVuSans-Bold.ttf", "LiberationSans-Bold.ttf"]
+_FONT_PATH = None
 
 
 def load_font(size):
-    for name in FONT_CANDIDATES:
+    global _FONT_PATH
+    if _FONT_PATH is None:
+        _FONT_PATH = find_font(FONT_CANDIDATES) or ""
+    if _FONT_PATH:
         try:
-            return ImageFont.truetype(name, size), name
+            return ImageFont.truetype(_FONT_PATH, size), _FONT_PATH
         except OSError:
-            continue
+            pass
     return ImageFont.load_default(), "default (install a bold TTF for a real preview)"
 
 
@@ -114,6 +114,7 @@ def main():
     ap.add_argument("--tag", help='small series tag in the top corner opposite the text, like "WEEK 7" or "EP 5"')
     ap.add_argument("--no-badge", action="store_true", help="omit the small MOCKUP tag")
     args = ap.parse_args()
+    utf8_stdout()
 
     out = Path(args.out)
     feed_path = out.with_name(out.stem + "_feed_320.png")
@@ -121,11 +122,26 @@ def main():
     for src in (args.frame, args.video):
         if src and Path(src).resolve() in (out.resolve(), feed_path.resolve()):
             sys.exit("--out must not be the same file as --frame or --video. Pick another output name.")
-    out.parent.mkdir(parents=True, exist_ok=True)
+    # Write only inside the episode folder: the folder of --video, or the folder of --frame
+    # and its parent (frames/ sits inside the episode folder). Never create folders.
+    roots = []
+    if args.video:
+        roots.append(Path(args.video).resolve().parent)
+    if args.frame:
+        fp = Path(args.frame).resolve().parent
+        roots += [fp, fp.parent]
+    if not roots:
+        sys.exit("Give --frame, or both --video and --time.")
+    out_parent = out.resolve().parent
+    if not out_parent.is_dir():
+        sys.exit("--out folder does not exist: %s. The script writes into the episode folder and never creates folders." % out_parent)
+    if not any(out_parent == r or r in out_parent.parents for r in roots):
+        sys.exit("--out must be inside the episode folder (%s)." % roots[0])
     if args.frame:
         frame_path = Path(args.frame)
     elif args.video and args.time:
         require_tool("ffmpeg")
+        probe(args.video)  # refuses playlist formats before ffmpeg reads them
         frame_path = out.parent / "thumb_source_frame.jpg"
         run(["ffmpeg", "-y", "-v", "error", "-ss", "%.3f" % parse_time(args.time), *FF_IN, "-i",
              media_path(args.video), "-frames:v", "1", "-q:v", "2", str(frame_path)])

@@ -18,6 +18,7 @@ survive on every platform (a shell script rewritten as CRLF stops running).
 """
 
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -60,12 +61,18 @@ def main():
         pairs.append(("Transcript-first clip planning, metadata, and thumbnail mockups for video podcasts.", tagline))
 
     touched = []
+    root_real = Path(os.path.realpath(root))
     for p in sorted(root.rglob("*")):
         if any(part in SKIP_DIRS for part in p.parts):
             continue
         if p.is_symlink() or not p.is_file() or p.suffix.lower() not in TEXT_EXT:
             continue
         if p.name == "rebrand.py" or p.name == "brand.json":
+            continue
+        # rglob follows Windows junctions (and, on older Pythons, symlinked folders).
+        # Only rewrite files whose real location is inside this repository.
+        real = Path(os.path.realpath(p))
+        if real != root_real and root_real not in real.parents:
             continue
         data = p.read_bytes()
         try:
