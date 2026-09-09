@@ -20,11 +20,22 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _common import (FF_IN, FF_IN_IMG, commit_target, find_font, fmt_mmss, fmt_time, media_path,  # noqa: E402
-                     output_dir, parse_time, probe, require_tool, run, temp_target, utf8_stdout)
+from _common import (FF_IN, FF_IN_IMG, IMG_OUT, commit_target, find_font, fmt_mmss, fmt_time, media_path,  # noqa: E402
+                     output_dir, parse_time, probe, require_tool, run_writing, temp_target, utf8_stdout)
 
 FRAME_LIMIT = 80
 FONT_CANDIDATES = ["DejaVuSans-Bold.ttf", "arialbd.ttf", "Arial Bold.ttf", "LiberationSans-Bold.ttf"]
+
+
+def positive_int(text):
+    """argparse type: a whole number of at least 1."""
+    try:
+        v = int(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError("%r is not a whole number" % text)
+    if v < 1:
+        raise argparse.ArgumentTypeError("must be 1 or more")
+    return v
 
 
 def build_times(explicit, duration, every=None, rng=None, step=2.0, limit=FRAME_LIMIT):
@@ -69,8 +80,8 @@ def build_times(explicit, duration, every=None, rng=None, step=2.0, limit=FRAME_
 
 def grab(video, t, out_path, width=640):
     tmp = temp_target(out_path)
-    run(["ffmpeg", "-y", "-v", "error", "-ss", "%.3f" % t, *FF_IN, "-i", media_path(video), "-frames:v", "1",
-         "-vf", "scale=%d:-2" % width, "-q:v", "3", str(tmp)])
+    run_writing(["ffmpeg", "-y", "-v", "error", "-ss", "%.3f" % t, *FF_IN, "-i", media_path(video), "-frames:v", "1",
+                 "-vf", "scale=%d:-2" % width, "-q:v", "3", *IMG_OUT, str(tmp)], tmp)
     commit_target(tmp, out_path)
 
 
@@ -85,10 +96,11 @@ def contact_sheet(frames, times, out_path, cols=4):
         for f in frames:
             inputs += [*FF_IN_IMG, "-i", media_path(f)]
         filt = "".join("[%d:v]" % i for i in range(n)) + "concat=n=%d:v=1:a=0,tile=%dx%d" % (n, cols, rows)
-        run(["ffmpeg", "-y", "-v", "error"] + inputs + ["-filter_complex", filt, "-frames:v", "1", str(out_path)])
+        run_writing(["ffmpeg", "-y", "-v", "error"] + inputs + ["-filter_complex", filt, "-frames:v", "1",
+                     *IMG_OUT, str(out_path)], out_path)
         return "ffmpeg (no time labels; install Pillow for labels: python3 -m pip install pillow)"
 
-    tiles = [Image.open(f).convert("RGB") for f in frames]
+    tiles = [Image.open(f, formats=["JPEG"]).convert("RGB") for f in frames]
     tw, th = tiles[0].size
     rows = (len(tiles) + cols - 1) // cols
     sheet = Image.new("RGB", (cols * tw, rows * th), (20, 20, 20))
@@ -116,8 +128,8 @@ def main():
     ap.add_argument("--every", type=float, help="grab one frame every N seconds across the whole video")
     ap.add_argument("--range", nargs=2, metavar=("START", "END"), help="grab frames between two times")
     ap.add_argument("--step", type=float, default=2.0, help="seconds between frames when using --range")
-    ap.add_argument("--width", type=int, default=640)
-    ap.add_argument("--cols", type=int, default=4)
+    ap.add_argument("--width", type=positive_int, default=640)
+    ap.add_argument("--cols", type=positive_int, default=4)
     args = ap.parse_args()
     utf8_stdout()
 
@@ -145,7 +157,7 @@ def main():
         tmp = temp_target(sheet)
         how = contact_sheet(frames, times, tmp, args.cols)
         commit_target(tmp, sheet)
-    except ValueError as exc:
+    except (OSError, ValueError) as exc:
         sys.exit(str(exc))
     print("WROTE %s (%s). Open it with view_image to inspect." % (sheet, how))
 

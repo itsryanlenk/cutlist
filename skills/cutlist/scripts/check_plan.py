@@ -61,8 +61,30 @@ def tag_field_length(tags):
     return len(",".join(parts))
 
 
+def text_field(label, obj, key):
+    """The field as a string. Anything else is a FAIL and an empty string."""
+    value = obj.get(key, "")
+    if value is None:
+        return ""
+    if not isinstance(value, str):
+        fail("%s: %s must be text, not %s" % (label, key, type(value).__name__))
+        return ""
+    return value
+
+
+def text_list(label, obj, key):
+    """The field as a list of strings. Anything else is a FAIL and an empty list."""
+    value = obj.get(key, [])
+    if value is None:
+        return []
+    if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
+        fail("%s: %s must be a list of text values" % (label, key))
+        return []
+    return value
+
+
 def check_meta(label, obj):
-    title = obj.get("title", "")
+    title = text_field(label, obj, "title")
     if not title:
         fail("%s: title is missing" % label)
     elif len(title) > TITLE_MAX:
@@ -72,7 +94,7 @@ def check_meta(label, obj):
     if "<" in title or ">" in title:
         fail("%s: title contains < or > (YouTube rejects these)" % label)
 
-    desc = obj.get("description", "")
+    desc = text_field(label, obj, "description")
     if not desc:
         fail("%s: description is missing" % label)
     else:
@@ -83,7 +105,7 @@ def check_meta(label, obj):
         if len(first) > 100:
             warn("%s: first description line is %d chars; only about 100 show before 'more'" % (label, len(first)))
 
-    tags = obj.get("tags", [])
+    tags = text_list(label, obj, "tags")
     if tags:
         n = tag_field_length(tags)
         if n > TAGS_MAX:
@@ -91,7 +113,7 @@ def check_meta(label, obj):
     else:
         warn("%s: no tags" % label)
 
-    hashtags = obj.get("hashtags", [])
+    hashtags = text_list(label, obj, "hashtags")
     for h in hashtags:
         if not re.match(r"^#[^\s#]+$", str(h)):
             fail("%s: bad hashtag %r (must start with # and contain no spaces)" % (label, h))
@@ -102,7 +124,8 @@ def check_meta(label, obj):
     elif not hashtags:
         warn("%s: no hashtags" % label)
 
-    cat = str(obj.get("category_id", ""))
+    cat = obj.get("category_id", "")
+    cat = str(cat) if isinstance(cat, (str, int)) and not isinstance(cat, bool) else ""
     if cat not in CATEGORIES:
         fail("%s: category_id %r is not a known id (use one of %s)" % (
             label, cat, ", ".join("%s=%s" % kv for kv in CATEGORIES.items())))
@@ -162,7 +185,7 @@ def check(plan, duration):
         if not th:
             fail("episode: no thumbnail block")
         else:
-            words = str(th.get("text", "")).split()
+            words = text_field("thumbnail", th, "text").split()
             if not words:
                 fail("thumbnail: text is empty")
             elif len(words) > THUMB_WORDS_MAX:
@@ -212,7 +235,7 @@ def check(plan, duration):
                 fail("%s overlaps clip %d" % (label, j))
                 break  # one line per clip; a plan of identical clips would otherwise print n squared lines
         spans.append((s, e, i))
-        if not c.get("hook_line"):
+        if not text_field(label, c, "hook_line"):
             fail("%s: hook_line is missing (the first sentence the viewer hears)" % label)
         if not c.get("why"):
             warn("%s: no 'why' (one line on why this moment earns a clip)" % label)

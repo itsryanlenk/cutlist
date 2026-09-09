@@ -38,6 +38,9 @@ while [ $# -gt 0 ]; do
   esac; shift
 done
 [ ${#AGENTS[@]} -gt 0 ] || { sed -n '2,17p' "$0"; exit 1; }
+case "$TARGET_ROOT/" in
+  "$HERE/skills/"*) echo "refusing to install inside this repository's skills/ folder; use --into elsewhere or --global" >&2; exit 1 ;;
+esac
 for a in "${AGENTS[@]}"; do
   case "$a" in
     codex)  dir=".agents/skills" ;;

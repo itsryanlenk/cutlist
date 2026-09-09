@@ -20,7 +20,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _common import (FF_IN, commit_target, fmt_mmss, load_plan, media_path, order_number, output_dir,  # noqa: E402
-                     parse_time, probe, require_tool, run, temp_target, utf8_stdout)
+                     parse_time, probe, require_tool, run_writing, temp_target, utf8_stdout)
 
 ITEM_LIMIT = 20
 CLIP_MAX_S = 60.0
@@ -50,9 +50,9 @@ def plan_items(plan, force=False):
 def cut(video, start, end, out, vertical=False):
     vf = ["-vf", "crop=ih*9/16:ih,scale=540:960"] if vertical else ["-vf", "scale=854:-2"]
     tmp = temp_target(out)
-    run(["ffmpeg", "-y", "-v", "error", "-ss", "%.3f" % start, "-to", "%.3f" % end, *FF_IN, "-i", media_path(video),
-         *vf, "-c:v", "libx264", "-preset", "veryfast", "-crf", "26", "-c:a", "aac", "-b:a", "96k",
-         "-movflags", "+faststart", str(tmp)])
+    run_writing(["ffmpeg", "-y", "-v", "error", "-ss", "%.3f" % start, "-to", "%.3f" % end, *FF_IN, "-i",
+                 media_path(video), *vf, "-c:v", "libx264", "-preset", "veryfast", "-crf", "26", "-c:a", "aac",
+                 "-b:a", "96k", "-movflags", "+faststart", str(tmp)], tmp)
     commit_target(tmp, out)
 
 
@@ -86,7 +86,7 @@ def main():
                 outv = out_dir / ("%s_%s_9x16.mp4" % (name, fmt_mmss(s).replace(":", "-")))
                 cut(video, s, e, outv, vertical=True)
                 print("wrote %s  (center crop, rough guide only)" % outv)
-    except ValueError as exc:
+    except (OSError, ValueError) as exc:
         sys.exit(str(exc))
 
 

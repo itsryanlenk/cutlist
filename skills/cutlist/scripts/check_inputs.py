@@ -105,7 +105,7 @@ def main(argv):
     try:
         write_bytes_safely(compact, ("\n".join(compact_lines(cues)) + "\n").encode("utf-8"))
         write_bytes_safely(seg, segments_csv(cues))
-    except ValueError as exc:
+    except (OSError, ValueError) as exc:
         sys.exit(str(exc))
     print("WROTE %s" % compact)
     print("WROTE %s" % seg)

@@ -29,7 +29,8 @@ Read only the reference you need. Each one is complete on its own.
    No timestamp, no clip. Quote the exact words in `hook_line`.
 3. Numbers spoken in the video are quotes, not facts. Keep them in the speaker's words.
    Never restate a spoken figure as verified in a description.
-4. Use the scripts in `$SKILL/scripts/`. Do not write new ffmpeg pipelines when a script already does the job.
+4. Use the scripts in `$SKILL/scripts/`. Do not write new ffmpeg pipelines when a script already
+   does the job. Never pass `--force` to `cut_previews.py` unless the creator asked for it.
 5. Times are `HH:MM:SS.mmm` in JSON. `MM:SS` is fine in prose.
 6. Write outputs only inside the episode folder you were given.
 7. Never delete or overwrite the creator's source files.

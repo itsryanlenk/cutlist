@@ -39,6 +39,9 @@ RUN_TIMEOUT_S = 900                    # the longest legitimate ffmpeg call is a
 MEDIA_FORMATS = "mov,mp4,m4a,3gp,3g2,mj2,matroska,webm,avi,mpegts,mpeg,mxf,asf,flv,wav,aiff,mp3,aac,flac,ogg"
 FF_IN = ["-format_whitelist", MEDIA_FORMATS, "-protocol_whitelist", "file"]
 FF_IN_IMG = ["-format_whitelist", "image2,png_pipe,jpeg_pipe,mjpeg", "-protocol_whitelist", "file"]
+# ffmpeg's image muxer expands %d in an output path (so a folder named ep%d would send a
+# frame to ep1/). -update 1 makes it write one file to the literal path instead.
+IMG_OUT = ["-update", "1"]
 REFUSED_FORMATS = {"hls", "applehttp", "concat", "dash", "sdp", "rtp", "rtsp", "lavfi", "imf", "avisynth", "image2"}
 
 
@@ -194,13 +197,28 @@ _VOICE_RE = re.compile(r"^<v\s+([^>]{1,200})>(.*)$", re.S)
 _TAG_RE = re.compile(r"<[^<>]{0,200}>")  # bounded, so an unclosed '<' run stays linear
 
 
-def _read_caption_text(path):
+def read_bounded(path, limit, what):
+    """Read a regular file of at most `limit` bytes. Raises ValueError otherwise.
+
+    A device, a pipe, or a symlink to one reports a size of zero and then never ends, so
+    the size alone is not a bound: the type is checked and the read itself is capped.
+    """
     p = Path(path)
-    size = p.stat().st_size
-    if size > CAPTION_MAX_BYTES:
-        raise ValueError("Caption file is too large (%d MB; the limit is %d MB). Is this really a caption file?" % (
-            size // (1024 * 1024), CAPTION_MAX_BYTES // (1024 * 1024)))
-    data = p.read_bytes()
+    st = p.stat()
+    if not stat.S_ISREG(st.st_mode):
+        raise ValueError("%s is not a regular file. %s must be a plain file." % (p, what))
+    if st.st_size > limit:
+        raise ValueError("%s is too large (%d bytes; the limit is %d). Is this really %s?" % (
+            p, st.st_size, limit, what.lower()))
+    with open(p, "rb") as fh:
+        data = fh.read(limit + 1)
+    if len(data) > limit:
+        raise ValueError("%s is too large (over %d bytes)." % (p, limit))
+    return data
+
+
+def _read_caption_text(path):
+    data = read_bounded(path, CAPTION_MAX_BYTES, "A caption file")
     if data[:2] in (b"\xff\xfe", b"\xfe\xff"):
         # Some Windows editors save SRT as UTF-16. Decode it instead of reporting "no cues".
         return data.decode("utf-16", errors="replace")
@@ -260,13 +278,9 @@ def load_plan(path):
     Guarantees on return: a dict; plan["episode"] is a dict; plan["clips"] is a list of
     dicts; episode.cold_open and episode.thumbnail are dicts when present.
     """
-    p = Path(path)
-    size = p.stat().st_size
-    if size > PLAN_MAX_BYTES:
-        raise ValueError("Plan file is too large (%d bytes; the limit is %d). A plan is tens of kilobytes." % (
-            size, PLAN_MAX_BYTES))
+    data = read_bounded(path, PLAN_MAX_BYTES, "A plan file")
     try:
-        plan = json.loads(p.read_bytes().decode("utf-8"))
+        plan = json.loads(data.decode("utf-8"))
     except (UnicodeDecodeError, ValueError, RecursionError) as exc:
         raise ValueError("Plan is not valid JSON: %s" % str(exc)[:200])
     if not isinstance(plan, dict):
@@ -316,17 +330,23 @@ def order_number(clip):
 # So every output is refused if the name is any kind of link, written to a fresh temp
 # file beside it, and moved into place with os.replace, which swaps the directory entry.
 
-_REPARSE = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+_NAME_SURROGATE = 0x20000000  # set on every reparse tag that redirects a name (symlink, junction)
+_LINK_TAGS = {getattr(stat, "IO_REPARSE_TAG_SYMLINK", 0xA000000C), getattr(stat, "IO_REPARSE_TAG_MOUNT_POINT", 0xA0000003)}
 
 
 def refuse_link(path):
-    """Raise ValueError when path exists as a symlink, a junction, or a multiply linked file."""
+    """Raise ValueError when path exists as a symlink, a junction, or a multiply linked file.
+
+    Only name-redirecting reparse points count: a cloud placeholder (OneDrive, Dropbox) is a
+    reparse point too, and a previous output that was dehydrated is still ours.
+    """
     path = Path(path)
     try:
         st = os.lstat(path)
     except FileNotFoundError:
         return
-    if stat.S_ISLNK(st.st_mode) or (getattr(st, "st_file_attributes", 0) & _REPARSE):
+    tag = getattr(st, "st_reparse_tag", 0)
+    if stat.S_ISLNK(st.st_mode) or tag in _LINK_TAGS or (tag & _NAME_SURROGATE):
         raise ValueError("%s is a link. Remove it; the scripts never write through links." % path)
     if stat.S_ISREG(st.st_mode) and st.st_nlink > 1:
         raise ValueError("%s has more than one hard link. Remove it; the scripts never write through links." % path)
@@ -345,6 +365,18 @@ def commit_target(tmp, path):
     """Move a finished temp file onto path. The old entry is unlinked, never written into."""
     refuse_link(path)
     os.replace(str(tmp), str(path))
+
+
+def run_writing(cmd, tmp):
+    """run(), but remove the temp output when the program fails or times out."""
+    try:
+        return run(cmd)
+    except BaseException:
+        try:
+            Path(tmp).unlink()
+        except OSError:
+            pass
+        raise
 
 
 def write_bytes_safely(path, data):

@@ -800,5 +800,122 @@ class ThumbnailStrict(unittest.TestCase):
         self.assertEqual(out.size, (thumbnail_mockup.W, thumbnail_mockup.H))
 
 
+FFMPEG = shutil.which("ffmpeg")
+
+
+def _tiny_video(folder, name="episode.mp4"):
+    """A one-second synthetic video for integration tests. Needs ffmpeg."""
+    out = Path(folder) / name
+    subprocess.run([FFMPEG, "-y", "-v", "error", "-f", "lavfi", "-i", "testsrc2=size=320x180:rate=10",
+                    "-f", "lavfi", "-i", "sine=frequency=220:sample_rate=16000", "-t", "1",
+                    "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac", str(out)], check=True, capture_output=True)
+    return out
+
+
+class RoundFour(unittest.TestCase):
+    @unittest.skipUnless(FFMPEG, "ffmpeg not on PATH")
+    def test_percent_d_in_the_folder_name_stays_inside(self):
+        # ffmpeg's image muxer expands %d in the output path. A bundle folder named ep%d
+        # must not send the frame to a sibling folder.
+        with tempfile.TemporaryDirectory() as d:
+            ep = Path(d) / "ep%d"
+            ep.mkdir()
+            video = _tiny_video(ep)
+            r = subprocess.run([PY, str(SCRIPTS / "frames.py"), str(video), "0:00.5"],
+                               capture_output=True, text=True, encoding="utf-8", errors="replace")
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+            frames = list((ep / "frames").glob("f_*.jpg"))
+            self.assertEqual(len(frames), 1)
+            self.assertGreater(frames[0].stat().st_size, 0)
+            self.assertFalse((Path(d) / "ep1").exists(), "frame escaped to a %d-expanded sibling")
+            self.assertEqual(list((ep / "frames").glob(".cutlist-*")), [])
+
+    def test_non_regular_files_are_refused(self):
+        special = Path("NUL") if WINDOWS else Path("/dev/zero")
+        with self.assertRaises(ValueError):
+            _common.parse_captions(special)
+        with self.assertRaises(ValueError):
+            _common.load_plan(special)
+
+    @unittest.skipUnless(FFMPEG, "ffmpeg not on PATH")
+    def test_failed_ffmpeg_leaves_no_temp_file(self):
+        import cut_previews
+        with tempfile.TemporaryDirectory() as d:
+            broken = Path(d) / "episode.mp4"
+            broken.write_bytes(b"not a video")
+            out = Path(d) / "clip_001.mp4"
+            with self.assertRaises(SystemExit):
+                cut_previews.cut(broken, 0.0, 1.0, out)
+            self.assertEqual(list(Path(d).glob(".cutlist-*")), [], "a failed encode left its temp file")
+
+    def test_output_name_that_is_a_folder_is_a_clean_exit(self):
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "transcript_compact.txt").mkdir()
+            with self.assertRaises((OSError, ValueError)):
+                _common.write_bytes_safely(Path(d) / "transcript_compact.txt", b"x")
+
+    @unittest.skipUnless(HAVE_PIL, "Pillow not installed")
+    def test_frame_that_is_not_jpeg_or_png_is_refused(self):
+        with tempfile.TemporaryDirectory() as d:
+            frame = Path(d) / "frame.jpg"
+            frame.write_bytes(b"%!PS-Adobe-3.0 EPSF-3.0\n%%BoundingBox: 0 0 10 10\n")
+            r = subprocess.run([PY, str(SCRIPTS / "thumbnail_mockup.py"), "--frame", str(frame),
+                                "--text", "HI", "--out", str(Path(d) / "thumb_mock.png")],
+                               capture_output=True, text=True, encoding="utf-8", errors="replace")
+            self.assertNotEqual(r.returncode, 0)
+            self.assertNotIn("Traceback", r.stderr)
+            self.assertNotIn("Ghostscript", r.stdout + r.stderr)
+
+    def test_check_plan_rejects_wrong_string_types(self):
+        example = json.loads((ROOT / "examples" / "_example" / "clip_plan.json").read_text(encoding="utf-8"))
+        mutations = [
+            lambda p: p["episode"].__setitem__("title", ["a", "b"]),
+            lambda p: p["clips"][0].__setitem__("tags", [{"x": 1}]),
+            lambda p: p["clips"][0].__setitem__("hashtags", {"#a": 1}),
+            lambda p: p["episode"]["thumbnail"].__setitem__("text", {"w": 1}),
+            lambda p: p["clips"][0].__setitem__("hook_line", ["words"]),
+            lambda p: p["clips"][0].__setitem__("description", 7),
+        ]
+        for mutate in mutations:
+            plan = json.loads(json.dumps(example))
+            mutate(plan)
+            with tempfile.TemporaryDirectory() as d:
+                p = Path(d) / "plan.json"
+                p.write_text(json.dumps(plan), encoding="utf-8")
+                r = subprocess.run([PY, str(SCRIPTS / "check_plan.py"), str(p)],
+                                   capture_output=True, text=True, encoding="utf-8", errors="replace")
+            self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+            self.assertNotIn("Traceback", r.stderr)
+
+    def test_frames_cols_must_be_positive(self):
+        import argparse
+        import frames
+        with self.assertRaises(argparse.ArgumentTypeError):
+            frames.positive_int("0")
+        self.assertEqual(frames.positive_int("4"), 4)
+
+    def test_audio_cache_junk_is_stale(self):
+        import audio_energy
+        with tempfile.TemporaryDirectory() as d:
+            junk = Path(d) / "episode.16k.wav"
+            junk.write_bytes(b"RIFF junk")
+            self.assertFalse(audio_energy.cache_ok(junk))
+
+    @unittest.skipUnless(BASH, "no real bash found")
+    def test_install_sh_refuses_into_its_own_skills_folder(self):
+        d = Path(tempfile.mkdtemp())
+        try:
+            repo = d / "repo"
+            (repo / "skills" / "demo").mkdir(parents=True)
+            (repo / "skills" / "demo" / "SKILL.md").write_text("---\nname: demo\n---\n", encoding="utf-8")
+            shutil.copy(ROOT / "install.sh", repo / "install.sh")
+            r = subprocess.run([BASH, str(repo / "install.sh"), "--claude", "--into", str(repo / "skills")],
+                               capture_output=True, text=True, encoding="utf-8", errors="replace")
+            self.assertNotEqual(r.returncode, 0, r.stdout + r.stderr)
+            self.assertFalse((repo / "skills" / ".claude").exists())
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+
+
 if __name__ == "__main__":
     unittest.main()

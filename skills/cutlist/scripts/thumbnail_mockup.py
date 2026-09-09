@@ -27,11 +27,11 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _common import (FF_IN, commit_target, find_font, media_path, parse_time, probe, refuse_link,  # noqa: E402
-                     require_tool, run, temp_target, utf8_stdout)
+from _common import (FF_IN, IMG_OUT, commit_target, find_font, media_path, parse_time, probe, refuse_link,  # noqa: E402
+                     require_tool, run_writing, temp_target, utf8_stdout)
 
 try:
-    from PIL import Image, ImageDraw, ImageFont, ImageOps
+    from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
 except ImportError:
     sys.exit("Pillow is not installed. Run: python3 -m pip install pillow")
 
@@ -153,19 +153,25 @@ def main():
             probe(args.video)  # refuses playlist formats before ffmpeg reads them
             frame_path = out.parent / "thumb_source_frame.jpg"
             tmp = temp_target(frame_path)
-            run(["ffmpeg", "-y", "-v", "error", "-ss", "%.3f" % parse_time(args.time), *FF_IN, "-i",
-                 media_path(args.video), "-frames:v", "1", "-q:v", "2", str(tmp)])
+            run_writing(["ffmpeg", "-y", "-v", "error", "-ss", "%.3f" % parse_time(args.time), *FF_IN, "-i",
+                         media_path(args.video), "-frames:v", "1", "-q:v", "2", *IMG_OUT, str(tmp)], tmp)
             commit_target(tmp, frame_path)
         else:
             sys.exit("Give --frame, or both --video and --time.")
-    except ValueError as exc:
+    except (OSError, ValueError) as exc:
         sys.exit(str(exc))
 
     words = args.text.strip().split()
     if len(words) > 4:
         print("WARN: %d words. 4 or fewer reads at feed size. Shorten it." % len(words))
 
-    with Image.open(frame_path) as src_img:
+    # Only the two image formats a frame can be. Pillow otherwise picks a plugin by content,
+    # and an EPS disguised as a .jpg would hand the file to Ghostscript.
+    try:
+        src_img = Image.open(frame_path, formats=["JPEG", "PNG"])
+    except (UnidentifiedImageError, OSError):
+        sys.exit("%s is not a JPEG or PNG frame." % frame_path)
+    with src_img:
         if src_img.width / src_img.height > ASPECT_MAX or src_img.height / src_img.width > ASPECT_MAX:
             sys.exit("The frame is %dx%d, which is not a video frame." % (src_img.width, src_img.height))
         base = cover(src_img.convert("RGB"))
@@ -212,7 +218,7 @@ def main():
         tmp = temp_target(feed_path)
         feed.save(tmp)
         commit_target(tmp, feed_path)
-    except ValueError as exc:
+    except (OSError, ValueError) as exc:
         sys.exit(str(exc))
     print("font: %s" % font_name)
     print("WROTE %s" % out)

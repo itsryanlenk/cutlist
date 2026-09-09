@@ -196,3 +196,27 @@ and each now has a unit test:
   lookalike letter from another alphabet still passes; SECURITY.md says so.
 - Two tests that could pass for the wrong reason now cannot: the PATH-walk test puts `.` and
   an empty entry first, and the playlist test uses a concat script that is refused by name.
+
+## 2026-09-09 - Fifth review: the image muxer, special files, and cleanup
+
+The fourth reviewer found nothing that reached the source recording or left the folder for
+good, and two Lows plus eight smaller items, each now with a unit test:
+
+- ffmpeg's image muxer expands `%d` in an output path, so a bundle folder named `ep%d` put a
+  frame into a sibling `ep1/`. Every image output now carries `-update 1`, which writes one
+  file to the literal path.
+- A caption or plan file that is not a regular file (a symlink to a device, a pipe) reports
+  zero bytes and would have been read without end. Both loaders now require a regular file
+  and cap the read itself.
+- A failed or timed-out `ffmpeg` left its temp file behind, up to a partial encode; it is
+  removed on every failure path. A directory where an output file should be, and junk in
+  the audio cache, are clean exits instead of tracebacks; the cache is re-extracted.
+- `refuse_link` refused every reparse point, which would have refused a cloud placeholder
+  of a previous output. It now refuses only name-redirecting tags (symlink, junction).
+- `--frame` is opened as JPEG or PNG only; Pillow would otherwise pick a plugin by content
+  and hand a PostScript file to Ghostscript.
+- The validator checks that text fields are text and list fields are lists of text; a
+  `--cols` of zero is an argument error; `install.sh` refuses `--into` under the
+  repository's own `skills/`; SKILL.md rule 4 says never to pass `--force` unasked.
+- The format whitelist wording in SECURITY.md now says what it does: refusal after
+  detection and before the header is parsed, with the accepted containers listed.
