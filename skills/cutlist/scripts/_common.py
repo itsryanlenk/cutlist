@@ -8,8 +8,10 @@ import json
 import math
 import os
 import re
+import stat
 import subprocess
 import sys
+import tempfile
 import unicodedata
 from pathlib import Path
 
@@ -25,14 +27,25 @@ os.environ.setdefault("NoDefaultCurrentDirectoryInExePath", "1")
 CAPTION_MAX_BYTES = 50 * 1024 * 1024  # a two-hour episode is well under 1 MB
 CUE_MAX_CHARS = 2000                   # one cue is a sentence or two
 PLAN_MAX_BYTES = 5 * 1024 * 1024       # a plan is tens of kilobytes
+CLIPS_MAX = 200                        # a plan has 5 to 8 clips; the validator is quadratic on overlaps
+ORDER_MAX = 999                        # publish_order names a file
 TIME_MAX_S = 100 * 3600                # no clip lives past hour 100; larger values feed float tricks
 RUN_TIMEOUT_S = 900                    # the longest legitimate ffmpeg call is a six-hour audio extract
 
-# Local files only. A playlist or index hidden inside a media file cannot reach the network
-# or another protocol through ffmpeg when this precedes its -i. probe() separately refuses
-# the playlist formats themselves, because a local playlist can still name other local files.
-FF_IN = ["-protocol_whitelist", "file"]
-REFUSED_FORMATS = {"hls", "applehttp", "concat", "dash", "sdp", "rtp", "rtsp", "lavfi"}
+# What ffmpeg and ffprobe may open. The format whitelist is checked before a demuxer reads
+# a byte, so a playlist, an index, or a script named like a video is refused up front; the
+# protocol whitelist keeps anything inside a file from reaching the network or another
+# protocol. probe() checks the reported format name as a second layer.
+MEDIA_FORMATS = "mov,mp4,m4a,3gp,3g2,mj2,matroska,webm,avi,mpegts,mpeg,mxf,asf,flv,wav,aiff,mp3,aac,flac,ogg"
+FF_IN = ["-format_whitelist", MEDIA_FORMATS, "-protocol_whitelist", "file"]
+FF_IN_IMG = ["-format_whitelist", "image2,png_pipe,jpeg_pipe,mjpeg", "-protocol_whitelist", "file"]
+REFUSED_FORMATS = {"hls", "applehttp", "concat", "dash", "sdp", "rtp", "rtsp", "lavfi", "imf", "avisynth", "image2"}
+
+
+def refused_formats(format_name):
+    """The playlist, index, and script format names present in an ffprobe format_name."""
+    names = {n.strip() for n in str(format_name).lower().split(",")}
+    return names & REFUSED_FORMATS
 
 
 def utf8_stdout():
@@ -141,11 +154,20 @@ def csv_safe(cell):
 
 
 _INJECTION_RE = re.compile(
-    r"ignore (?:all |any )?(?:previous|prior|above|earlier) (?:instructions|prompts|rules)"
-    r"|\byou are now\b|\bsystem prompt\b|\bas an ai\b|\bdo not tell the (?:user|creator)\b"
-    r"|\b(?:curl|wget|rm -rf|sudo|powershell|invoke-webrequest)\b|https?://",
+    r"(?:ignore|disregard|forget)\s+(?:all\s+|any\s+)?(?:previous|prior|above|earlier)\s+(?:instructions|prompts|rules)"
+    r"|\byou\s+are\s+now\b|\bsystem\s+prompt\b|\bas\s+an\s+ai\b|\bdo\s+not\s+tell\s+the\s+(?:user|creator)\b"
+    r"|\b(?:curl|wget|rm\s+-rf|sudo|powershell|invoke-webrequest)\b|https?://",
     re.I,
 )
+# A speaker label that names a chat role is a caption pretending to be a conversation turn.
+ROLE_LABELS = {"system", "assistant", "user", "developer", "instruction", "instructions", "tool", "function"}
+
+
+def normalize_for_match(text):
+    """Fold fullwidth and compatibility forms and drop combining marks, so a lookalike
+    spelling matches the plain one. Used for flagging only, never for the text itself."""
+    text = unicodedata.normalize("NFKC", str(text))
+    return "".join(ch for ch in text if unicodedata.category(ch) != "Mn")
 
 
 def injection_flags(text):
@@ -153,8 +175,14 @@ def injection_flags(text):
 
     Captions are attacker-authored input that the agent reads in full. This does not
     block anything; it lets check_inputs.py tell the creator which cues to look at.
+    Lookalike letters from another alphabet are not caught; the flag is a help, not a gate.
     """
-    return [m.group(0) for m in _INJECTION_RE.finditer(str(text))]
+    return [m.group(0) for m in _INJECTION_RE.finditer(normalize_for_match(text))]
+
+
+def is_role_label(label):
+    """True when a speaker label names a chat role, after normalization."""
+    return normalize_for_match(label).strip().lower() in ROLE_LABELS
 
 
 # ---------------------------------------------------------------------------
@@ -239,8 +267,8 @@ def load_plan(path):
             size, PLAN_MAX_BYTES))
     try:
         plan = json.loads(p.read_bytes().decode("utf-8"))
-    except (UnicodeDecodeError, ValueError) as exc:
-        raise ValueError("Plan is not valid JSON: %s" % exc)
+    except (UnicodeDecodeError, ValueError, RecursionError) as exc:
+        raise ValueError("Plan is not valid JSON: %s" % str(exc)[:200])
     if not isinstance(plan, dict):
         raise ValueError("Plan must be a JSON object at the top level")
     ep = plan.get("episode", {})
@@ -249,12 +277,100 @@ def load_plan(path):
     clips = plan.get("clips", [])
     if not isinstance(clips, list) or not all(isinstance(c, dict) for c in clips):
         raise ValueError("'clips' must be a list of objects")
+    if len(clips) > CLIPS_MAX:
+        raise ValueError("%d clips; a plan has 5 to 8 and the limit is %d" % (len(clips), CLIPS_MAX))
     for key in ("cold_open", "thumbnail"):
         if ep.get(key) is not None and not isinstance(ep[key], dict):
             raise ValueError("'episode.%s' must be an object" % key)
     plan["episode"] = ep
     plan["clips"] = clips
     return plan
+
+
+def order_number(clip):
+    """publish_order (or rank) as a whole number from 1 to ORDER_MAX. It names a file."""
+    v = clip.get("publish_order", clip.get("rank"))
+    bad = ValueError("publish_order must be a whole number from 1 to %d" % ORDER_MAX)
+    if v is None or isinstance(v, bool):
+        raise bad
+    if isinstance(v, float):
+        if not v.is_integer():
+            raise bad
+        v = int(v)
+    if not isinstance(v, int):
+        try:
+            v = int(str(v).strip())
+        except (TypeError, ValueError):
+            raise bad
+    if not 1 <= v <= ORDER_MAX:
+        raise bad
+    return v
+
+
+# ---------------------------------------------------------------------------
+# Output files: never written through a link, always replaced whole
+# ---------------------------------------------------------------------------
+# A bundle can carry a file named like one of our outputs (transcript_compact.txt,
+# thumb_mock.png, previews/) as a hard link, a symlink, or a junction pointing at the
+# creator's source recording. Opening that name for writing would truncate the source.
+# So every output is refused if the name is any kind of link, written to a fresh temp
+# file beside it, and moved into place with os.replace, which swaps the directory entry.
+
+_REPARSE = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+
+
+def refuse_link(path):
+    """Raise ValueError when path exists as a symlink, a junction, or a multiply linked file."""
+    path = Path(path)
+    try:
+        st = os.lstat(path)
+    except FileNotFoundError:
+        return
+    if stat.S_ISLNK(st.st_mode) or (getattr(st, "st_file_attributes", 0) & _REPARSE):
+        raise ValueError("%s is a link. Remove it; the scripts never write through links." % path)
+    if stat.S_ISREG(st.st_mode) and st.st_nlink > 1:
+        raise ValueError("%s has more than one hard link. Remove it; the scripts never write through links." % path)
+
+
+def temp_target(path):
+    """A fresh temp file beside path, carrying path's suffix, for a program or Pillow to fill."""
+    path = Path(path)
+    refuse_link(path)
+    fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=".cutlist-", suffix=path.suffix)
+    os.close(fd)
+    return Path(tmp)
+
+
+def commit_target(tmp, path):
+    """Move a finished temp file onto path. The old entry is unlinked, never written into."""
+    refuse_link(path)
+    os.replace(str(tmp), str(path))
+
+
+def write_bytes_safely(path, data):
+    """Write data to path through a temp file and a replace."""
+    tmp = temp_target(path)
+    try:
+        tmp.write_bytes(data)
+        commit_target(tmp, path)
+    except BaseException:
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+        raise
+
+
+def output_dir(video, name):
+    """<episode folder>/<name>, created if missing, refused if the name is a link of any kind."""
+    base = Path(os.path.abspath(str(video))).parent
+    d = base / name
+    refuse_link(d)
+    d.mkdir(exist_ok=True)
+    real = d.resolve()
+    if real.parent != base.resolve():
+        raise ValueError("%s is not inside the episode folder" % d)
+    return real
 
 
 # ---------------------------------------------------------------------------
@@ -334,10 +450,10 @@ def probe(video):
     except ValueError:
         sys.exit("ffprobe returned no readable information for %s" % video)
     fmt = data.get("format", {}) if isinstance(data, dict) else {}
-    names = {n.strip() for n in str(fmt.get("format_name", "")).lower().split(",")}
-    if names & REFUSED_FORMATS:
-        sys.exit("Refusing %s: ffprobe reads it as a playlist or stream index (%s), which can pull in other "
-                 "files. Point the scripts at the media file itself." % (video, ",".join(sorted(names & REFUSED_FORMATS))))
+    refused = refused_formats(fmt.get("format_name", ""))
+    if refused:
+        sys.exit("Refusing %s: ffprobe reads it as a playlist, index, or script (%s), which can pull in other "
+                 "files. Point the scripts at the media file itself." % (video, ",".join(sorted(refused))))
     try:
         duration = float(fmt.get("duration", 0.0))
     except (TypeError, ValueError):

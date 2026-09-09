@@ -20,7 +20,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _common import FF_IN, find_font, fmt_mmss, fmt_time, media_path, parse_time, probe, require_tool, run, utf8_stdout  # noqa: E402
+from _common import (FF_IN, FF_IN_IMG, commit_target, find_font, fmt_mmss, fmt_time, media_path,  # noqa: E402
+                     output_dir, parse_time, probe, require_tool, run, temp_target, utf8_stdout)
 
 FRAME_LIMIT = 80
 FONT_CANDIDATES = ["DejaVuSans-Bold.ttf", "arialbd.ttf", "Arial Bold.ttf", "LiberationSans-Bold.ttf"]
@@ -34,26 +35,29 @@ def build_times(explicit, duration, every=None, rng=None, step=2.0, limit=FRAME_
     start, t + step == t and an accumulating loop never ends.
     """
     times = [parse_time(t) for t in explicit]
-    if every is not None:
-        if every <= 0:
-            raise ValueError("--every must be a positive number of seconds")
-        n = int(duration / every) + 1
-        if n > limit:
-            raise ValueError("--every %g over %.0f s is about %d frames. Keep it under %d per sheet." % (
-                every, duration, n, limit))
-        times += [i * every for i in range(n) if i * every < duration]
-    if rng:
-        a, b = parse_time(rng[0]), parse_time(rng[1])
-        if step <= 0:
-            raise ValueError("--step must be a positive number of seconds")
-        if b < a:
-            raise ValueError("--range end is before its start")
-        a, b = min(a, duration), min(b, duration)
-        n = int((b - a) / step + 1e-9) + 1
-        if n > limit:
-            raise ValueError("--range with --step %g is about %d frames. Keep it under %d per sheet." % (
-                step, n, limit))
-        times += [a + i * step for i in range(n)]
+    try:
+        if every is not None:
+            if every <= 0:
+                raise ValueError("--every must be a positive number of seconds")
+            n = int(duration / every) + 1
+            if n > limit:
+                raise ValueError("--every %g over %.0f s is about %d frames. Keep it under %d per sheet." % (
+                    every, duration, n, limit))
+            times += [i * every for i in range(n) if i * every < duration]
+        if rng:
+            a, b = parse_time(rng[0]), parse_time(rng[1])
+            if step <= 0:
+                raise ValueError("--step must be a positive number of seconds")
+            if b < a:
+                raise ValueError("--range end is before its start")
+            a, b = min(a, duration), min(b, duration)
+            n = int((b - a) / step + 1e-9) + 1
+            if n > limit:
+                raise ValueError("--range with --step %g is about %d frames. Keep it under %d per sheet." % (
+                    step, n, limit))
+            times += [a + i * step for i in range(n)]
+    except OverflowError:
+        raise ValueError("--every and --step must be sensible numbers of seconds")
     if not times:
         raise ValueError("Give at least one time, or --every, or --range.")
     times = sorted({round(min(max(t, 0.0), max(duration - 0.05, 0.0)), 3) for t in times})
@@ -64,8 +68,10 @@ def build_times(explicit, duration, every=None, rng=None, step=2.0, limit=FRAME_
 
 
 def grab(video, t, out_path, width=640):
+    tmp = temp_target(out_path)
     run(["ffmpeg", "-y", "-v", "error", "-ss", "%.3f" % t, *FF_IN, "-i", media_path(video), "-frames:v", "1",
-         "-vf", "scale=%d:-2" % width, "-q:v", "3", str(out_path)])
+         "-vf", "scale=%d:-2" % width, "-q:v", "3", str(tmp)])
+    commit_target(tmp, out_path)
 
 
 def contact_sheet(frames, times, out_path, cols=4):
@@ -77,7 +83,7 @@ def contact_sheet(frames, times, out_path, cols=4):
         rows = (n + cols - 1) // cols
         inputs = []
         for f in frames:
-            inputs += [*FF_IN, "-i", media_path(f)]
+            inputs += [*FF_IN_IMG, "-i", media_path(f)]
         filt = "".join("[%d:v]" % i for i in range(n)) + "concat=n=%d:v=1:a=0,tile=%dx%d" % (n, cols, rows)
         run(["ffmpeg", "-y", "-v", "error"] + inputs + ["-filter_complex", filt, "-frames:v", "1", str(out_path)])
         return "ffmpeg (no time labels; install Pillow for labels: python3 -m pip install pillow)"
@@ -126,17 +132,21 @@ def main():
     except ValueError as exc:
         sys.exit(str(exc))
 
-    out_dir = video.parent / "frames"
-    out_dir.mkdir(exist_ok=True)
-    frames = []
-    for t in times:
-        name = "f_%s.jpg" % fmt_time(t).replace(":", "-")
-        p = out_dir / name
-        grab(video, t, p, args.width)
-        frames.append(p)
-        print("frame %s -> %s" % (fmt_mmss(t), p))
-    sheet = out_dir / "contact_sheet.jpg"
-    how = contact_sheet(frames, times, sheet, args.cols)
+    try:
+        out_dir = output_dir(video, "frames")
+        frames = []
+        for t in times:
+            name = "f_%s.jpg" % fmt_time(t).replace(":", "-")
+            p = out_dir / name
+            grab(video, t, p, args.width)
+            frames.append(p)
+            print("frame %s -> %s" % (fmt_mmss(t), p))
+        sheet = out_dir / "contact_sheet.jpg"
+        tmp = temp_target(sheet)
+        how = contact_sheet(frames, times, tmp, args.cols)
+        commit_target(tmp, sheet)
+    except ValueError as exc:
+        sys.exit(str(exc))
     print("WROTE %s (%s). Open it with view_image to inspect." % (sheet, how))
 
 

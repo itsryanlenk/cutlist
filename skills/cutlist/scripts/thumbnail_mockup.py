@@ -22,18 +22,21 @@ Usage
 """
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _common import FF_IN, find_font, media_path, parse_time, probe, require_tool, run, utf8_stdout  # noqa: E402
+from _common import (FF_IN, commit_target, find_font, media_path, parse_time, probe, refuse_link,  # noqa: E402
+                     require_tool, run, temp_target, utf8_stdout)
 
 try:
-    from PIL import Image, ImageDraw, ImageFont
+    from PIL import Image, ImageDraw, ImageFont, ImageOps
 except ImportError:
     sys.exit("Pillow is not installed. Run: python3 -m pip install pillow")
 
 W, H = 1280, 720
+ASPECT_MAX = 8.0  # wider or taller than this is not a video frame
 # Bare names are looked up in the system font folders only (see find_font), never in the
 # working folder, so a font file among the creator's inputs is never parsed.
 FONT_CANDIDATES = ["impact.ttf", "Impact.ttf", "arialbd.ttf", "Arial Bold.ttf",
@@ -59,12 +62,12 @@ def hex_to_rgb(h):
 
 
 def cover(img):
-    """Scale and center-crop img to fill W x H."""
-    ratio = max(W / img.width, H / img.height)
-    img = img.resize((round(img.width * ratio), round(img.height * ratio)), Image.LANCZOS)
-    x = (img.width - W) // 2
-    y = (img.height - H) // 2
-    return img.crop((x, y, x + W, y + H))
+    """Crop img to 16:9 in its own coordinates, then scale to W x H.
+
+    Cropping first keeps the intermediate at most the source size. Scaling first would
+    turn a 4096x2 frame into a gigapixel image before the crop.
+    """
+    return ImageOps.fit(img, (W, H), method=Image.LANCZOS, centering=(0.5, 0.5))
 
 
 def gradient(side):
@@ -137,22 +140,35 @@ def main():
         sys.exit("--out folder does not exist: %s. The script writes into the episode folder and never creates folders." % out_parent)
     if not any(out_parent == r or r in out_parent.parents for r in roots):
         sys.exit("--out must be inside the episode folder (%s)." % roots[0])
-    if args.frame:
-        frame_path = Path(args.frame)
-    elif args.video and args.time:
-        require_tool("ffmpeg")
-        probe(args.video)  # refuses playlist formats before ffmpeg reads them
-        frame_path = out.parent / "thumb_source_frame.jpg"
-        run(["ffmpeg", "-y", "-v", "error", "-ss", "%.3f" % parse_time(args.time), *FF_IN, "-i",
-             media_path(args.video), "-frames:v", "1", "-q:v", "2", str(frame_path)])
-    else:
-        sys.exit("Give --frame, or both --video and --time.")
+    try:
+        for target in (out, feed_path):
+            refuse_link(target)
+            for src in (args.frame, args.video):
+                if src and target.exists() and os.path.samefile(src, target):
+                    sys.exit("--out must not be the same file as --frame or --video. Pick another output name.")
+        if args.frame:
+            frame_path = Path(args.frame)
+        elif args.video and args.time:
+            require_tool("ffmpeg")
+            probe(args.video)  # refuses playlist formats before ffmpeg reads them
+            frame_path = out.parent / "thumb_source_frame.jpg"
+            tmp = temp_target(frame_path)
+            run(["ffmpeg", "-y", "-v", "error", "-ss", "%.3f" % parse_time(args.time), *FF_IN, "-i",
+                 media_path(args.video), "-frames:v", "1", "-q:v", "2", str(tmp)])
+            commit_target(tmp, frame_path)
+        else:
+            sys.exit("Give --frame, or both --video and --time.")
+    except ValueError as exc:
+        sys.exit(str(exc))
 
     words = args.text.strip().split()
     if len(words) > 4:
         print("WARN: %d words. 4 or fewer reads at feed size. Shorten it." % len(words))
 
-    base = cover(Image.open(frame_path).convert("RGB"))
+    with Image.open(frame_path) as src_img:
+        if src_img.width / src_img.height > ASPECT_MAX or src_img.height / src_img.width > ASPECT_MAX:
+            sys.exit("The frame is %dx%d, which is not a video frame." % (src_img.width, src_img.height))
+        base = cover(src_img.convert("RGB"))
     shade = Image.new("RGB", (W, H), (0, 0, 0))
     base = Image.composite(shade, base, gradient(args.side))
 
@@ -188,9 +204,16 @@ def main():
         draw.rectangle([14, H - 46, 126, H - 14], fill=(0, 0, 0))
         draw.text((22, H - 42), "MOCKUP", font=small, fill=accent)
 
-    base.save(out)
-    feed = base.resize((320, 180), Image.LANCZOS)
-    feed.save(feed_path)
+    try:
+        tmp = temp_target(out)
+        base.save(tmp)
+        commit_target(tmp, out)
+        feed = base.resize((320, 180), Image.LANCZOS)
+        tmp = temp_target(feed_path)
+        feed.save(tmp)
+        commit_target(tmp, feed_path)
+    except ValueError as exc:
+        sys.exit(str(exc))
     print("font: %s" % font_name)
     print("WROTE %s" % out)
     print("WROTE %s  <- open this one. If you cannot read it, cut words." % feed_path)

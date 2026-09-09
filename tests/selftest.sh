@@ -32,7 +32,7 @@ EOF
 
 step "unit tests";     LOG=$(mktemp)
 if python3 -m unittest discover -s tests -v >"$LOG" 2>&1; then
-  ran=$(grep -oE 'Ran [0-9]+ tests' "$LOG" || true); skipped=$(grep -c "skipped" "$LOG" || true)
+  ran=$(grep -oE 'Ran [0-9]+ tests' "$LOG" || true); skipped=$(grep -c " \.\.\. skipped" "$LOG" || true)
   ok "hardening tests ($ran, $skipped skipped)"
 else
   tail -40 "$LOG"; bad "hardening tests (see above)"

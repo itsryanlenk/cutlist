@@ -23,7 +23,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _common import load_plan, parse_time, probe, utf8_stdout  # noqa: E402
+from _common import load_plan, order_number, parse_time, probe, utf8_stdout  # noqa: E402
 
 CATEGORIES = {
     "1": "Film & Animation", "2": "Autos & Vehicles", "10": "Music", "15": "Pets & Animals",
@@ -210,15 +210,19 @@ def check(plan, duration):
         for (s2, e2, j) in spans:
             if s < e2 and s2 < e:
                 fail("%s overlaps clip %d" % (label, j))
+                break  # one line per clip; a plan of identical clips would otherwise print n squared lines
         spans.append((s, e, i))
         if not c.get("hook_line"):
             fail("%s: hook_line is missing (the first sentence the viewer hears)" % label)
         if not c.get("why"):
             warn("%s: no 'why' (one line on why this moment earns a clip)" % label)
-        orders.append(c.get("publish_order"))
+        try:
+            orders.append(order_number(c))
+        except ValueError as exc:
+            fail("%s: %s" % (label, exc))
         check_meta(label, c)
-    if orders and (None in orders or len(set(map(str, orders))) != len(orders)):
-        fail("publish_order must be present and unique on every clip")
+    if len(set(orders)) != len(orders):
+        fail("publish_order must be unique on every clip")
 
 
 if __name__ == "__main__":

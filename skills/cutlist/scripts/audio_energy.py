@@ -20,6 +20,7 @@ Usage
 import argparse
 import array
 import csv
+import io
 import math
 import operator
 import sys
@@ -27,17 +28,21 @@ import wave
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _common import FF_IN, fmt_mmss, media_path, probe, require_tool, run, utf8_stdout  # noqa: E402
+from _common import (FF_IN, commit_target, fmt_mmss, media_path, probe, refuse_link, require_tool, run,  # noqa: E402
+                     temp_target, utf8_stdout, write_bytes_safely)
 
 MAX_HOURS_DEFAULT = 6.0  # a 16 kHz mono WAV is about 115 MB per hour beside the creator's video
 
 
 def extract_wav(video, wav, max_hours):
     require_tool("ffmpeg")
+    refuse_link(wav)
     if wav.exists() and wav.stat().st_mtime >= video.stat().st_mtime:
         return
+    tmp = temp_target(wav)
     run(["ffmpeg", "-y", "-v", "error", *FF_IN, "-i", media_path(video), "-t", "%.3f" % (max_hours * 3600),
-         "-vn", "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", str(wav)])
+         "-vn", "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", str(tmp)])
+    commit_target(tmp, wav)
 
 
 def window_db(wav_path, window_s=1.0):
@@ -99,17 +104,24 @@ def main():
         sys.exit("The media reports %.1f hours. Pass --max-hours %.0f if that is right." % (
             duration / 3600, math.ceil(duration / 3600)))
     wav = video.with_suffix(".16k.wav")
-    extract_wav(video, wav, args.max_hours)
+    try:
+        extract_wav(video, wav, args.max_hours)
+    except ValueError as exc:
+        sys.exit(str(exc))
     rows = window_db(wav, args.window)
     if not rows:
         sys.exit("No audio windows measured.")
 
     out = video.parent / "energy.csv"
-    with out.open("w", encoding="utf-8", newline="") as fh:
-        w = csv.writer(fh)
-        w.writerow(["t_s", "mmss", "db"])
-        for t, db in rows:
-            w.writerow(["%.1f" % t, fmt_mmss(t), "%.1f" % db])
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["t_s", "mmss", "db"])
+    for t, db in rows:
+        w.writerow(["%.1f" % t, fmt_mmss(t), "%.1f" % db])
+    try:
+        write_bytes_safely(out, buf.getvalue().encode("utf-8"))
+    except ValueError as exc:
+        sys.exit(str(exc))
 
     dbs = sorted(db for _, db in rows if db > -80)
     if not dbs:

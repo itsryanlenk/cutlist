@@ -168,3 +168,31 @@ first review missed. What they proved, and what changed, each with a unit test:
   docs, prompts, tests, and the one-shot rebrand script alongside the skill. Nothing there
   is private and nothing runs on install; splitting the tree would put a Claude-only folder
   inside the agent-agnostic skill.
+
+## 2026-09-09 - Fourth review: links, junctions, and the format whitelist
+
+The third reviewer proved three bypasses of the rules above, all with unprivileged fixtures,
+and each now has a unit test:
+
+- A file in the bundle named like an output (`transcript_compact.txt`, `energy.csv`,
+  `thumb_mock.png`) as a hard link to `episode.mp4` truncated the video through that name;
+  the thumbnail's "never overwrite" check compared resolved paths, which cannot see hard
+  links. Every output name is now refused if it is a symlink, a junction, or has more than
+  one hard link; every output goes to a fresh temp file beside it and is moved into place
+  with a replace, so an existing name is unlinked and never written into.
+- A junction named `frames/` or `previews/` sent output outside the episode folder.
+  `output_dir()` refuses a linked folder and requires the real folder to sit inside the
+  episode folder.
+- A 4096x2 frame made the thumbnail scale to gigapixels before cropping. It now crops to
+  16:9 in source coordinates first and refuses frames that are not video-shaped.
+- `-format_whitelist` now names the media formats the scripts open, so a playlist, an IMF
+  composition, or an AviSynth script named like a video is refused before any demuxer reads
+  it. The format-name denylist stays as a second layer.
+- Plans are capped at 200 clips and the overlap check reports one line per clip, so a plan
+  of identical clips cannot print n squared lines. `publish_order` is bounded in
+  `check_plan.py` as well as in `cut_previews.py`. Deep JSON nesting and a denormal
+  `--every` are `FAIL` lines, not tracebacks.
+- Injection and role-label flags normalize fullwidth and accented spellings first. A
+  lookalike letter from another alphabet still passes; SECURITY.md says so.
+- Two tests that could pass for the wrong reason now cannot: the PATH-walk test puts `.` and
+  an empty entry first, and the playlist test uses a concat script that is refused by name.
