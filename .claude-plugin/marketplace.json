@@ -1,0 +1,26 @@
+{
+  "name": "cutlist",
+  "owner": {
+    "name": "Ryan Lenk",
+    "url": "https://github.com/itsryanlenk"
+  },
+  "metadata": {
+    "description": "Transcript-first clip planning, metadata, and thumbnail mockups for video podcasts.",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "cutlist",
+      "source": "./",
+      "description": "Transcript-first clip planning, metadata, and thumbnail mockups for video podcasts.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Ryan Lenk"
+      },
+      "homepage": "https://github.com/itsryanlenk/cutlist",
+      "license": "MIT",
+      "keywords": ["podcast", "youtube", "shorts", "clips", "thumbnail", "ffmpeg"],
+      "category": "productivity"
+    }
+  ]
+}

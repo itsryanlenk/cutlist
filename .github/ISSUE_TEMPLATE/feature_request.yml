@@ -1,0 +1,38 @@
+name: Feature request
+description: Suggest a change. Describe the problem before the solution.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This skill says no to some things on purpose. It will not upload, publish,
+        schedule, or log in to a platform. It will not add a web UI, a server, an API
+        key, or a cloud service. It will not add dependencies beyond Pillow. Those are
+        design decisions with reasons in `docs/DECISIONS.md`. Lead with the problem you
+        are hitting, and the fix you have in mind second.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do that the skill makes hard or impossible?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: A possible solution
+      description: Optional. If you have one in mind.
+    validations:
+      required: false
+  - type: checkboxes
+    id: rules
+    attributes:
+      label: Fit with the design
+      description: See `docs/DECISIONS.md`. Confirm the idea does not require breaking one of these.
+      options:
+        - label: This does not make the agent upload, publish, schedule, or log in to anything
+          required: true
+        - label: This does not add a dependency beyond Pillow, or a server, or a cloud service
+          required: true
+        - label: If this changes a clip rule, a limit, or the trifecta rule, I can name a source for the new value
+          required: false

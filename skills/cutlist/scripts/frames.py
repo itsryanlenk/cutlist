@@ -1,0 +1,144 @@
+#!/usr/bin/env python3
+"""Step 3. Pull still frames from the video so the agent can LOOK at candidate moments.
+
+What it does
+  1. For each time you give, saves one JPG frame to episodes/<ep>/frames/.
+  2. Builds frames/contact_sheet.jpg: a grid of all frames with the time
+     stamped on each tile. One image the agent can open with view_image.
+
+Use it to check: is the speaker on camera, is the face expressive, is the
+framing clean, is there a glitch, is this a good thumbnail frame.
+
+Usage
+  python3 scripts/frames.py episodes/ep05/episode.mp4 12:34 18:02.5 00:41:10
+  python3 scripts/frames.py episodes/ep05/episode.mp4 --every 60      # one frame per minute
+  python3 scripts/frames.py episodes/ep05/episode.mp4 --range 12:30 12:58 --step 2
+"""
+
+import argparse
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _common import FF_IN, fmt_mmss, fmt_time, media_path, parse_time, probe, require_tool, run  # noqa: E402
+
+FRAME_LIMIT = 80
+
+
+def build_times(explicit, duration, every=None, rng=None, step=2.0, limit=FRAME_LIMIT):
+    """Turn the requested times into a sorted list of distinct times inside the video.
+
+    Refuses before building anything when the count would pass the limit. The
+    duration comes from the media's own metadata, so a file that claims to be a
+    year long must not turn --every 60 into a memory exhaustion.
+    """
+    times = [parse_time(t) for t in explicit]
+    if every is not None:
+        if every <= 0:
+            raise ValueError("--every must be a positive number of seconds")
+        if duration / every > limit:
+            raise ValueError("--every %g over %.0f s is about %d frames. Keep it under %d per sheet." % (
+                every, duration, int(duration / every) + 1, limit))
+        t = 0.0
+        while t < duration:
+            times.append(t)
+            t += every
+    if rng:
+        a, b = parse_time(rng[0]), parse_time(rng[1])
+        if step <= 0:
+            raise ValueError("--step must be a positive number of seconds")
+        if b < a:
+            raise ValueError("--range end is before its start")
+        if (b - a) / step > limit:
+            raise ValueError("--range with --step %g is about %d frames. Keep it under %d per sheet." % (
+                step, int((b - a) / step) + 1, limit))
+        t = a
+        while t <= b + 1e-9:
+            times.append(t)
+            t += step
+    if not times:
+        raise ValueError("Give at least one time, or --every, or --range.")
+    times = sorted({round(min(max(t, 0.0), max(duration - 0.05, 0.0)), 3) for t in times})
+    if len(times) > limit:
+        raise ValueError("That is %d frames. Keep it under %d per sheet (use a larger --every or --step)." % (
+            len(times), limit))
+    return times
+
+
+def grab(video, t, out_path, width=640):
+    run(["ffmpeg", "-y", "-v", "error", "-ss", "%.3f" % t, *FF_IN, "-i", media_path(video), "-frames:v", "1",
+         "-vf", "scale=%d:-2" % width, "-q:v", "3", str(out_path)])
+
+
+def contact_sheet(frames, times, out_path, cols=4):
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+    except ImportError:
+        # Fallback: ffmpeg tile filter, no labels.
+        n = len(frames)
+        rows = (n + cols - 1) // cols
+        inputs = []
+        for f in frames:
+            inputs += [*FF_IN, "-i", media_path(f)]
+        filt = "".join("[%d:v]" % i for i in range(n)) + "concat=n=%d:v=1:a=0,tile=%dx%d" % (n, cols, rows)
+        run(["ffmpeg", "-y", "-v", "error"] + inputs + ["-filter_complex", filt, "-frames:v", "1", str(out_path)])
+        return "ffmpeg (no time labels; install Pillow for labels: python3 -m pip install pillow)"
+
+    tiles = [Image.open(f).convert("RGB") for f in frames]
+    tw, th = tiles[0].size
+    rows = (len(tiles) + cols - 1) // cols
+    sheet = Image.new("RGB", (cols * tw, rows * th), (20, 20, 20))
+    draw = ImageDraw.Draw(sheet)
+    try:
+        font = ImageFont.truetype("DejaVuSans-Bold.ttf", 28)
+    except OSError:
+        font = ImageFont.load_default()
+    for i, (tile, t) in enumerate(zip(tiles, times)):
+        x = (i % cols) * tw
+        y = (i // cols) * th
+        sheet.paste(tile, (x, y))
+        label = fmt_mmss(t)
+        draw.rectangle([x, y, x + 120, y + 40], fill=(0, 0, 0))
+        draw.text((x + 8, y + 5), label, fill=(255, 230, 0), font=font)
+    sheet.save(out_path, quality=85)
+    return "Pillow"
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("video")
+    ap.add_argument("times", nargs="*", help="times like 12:34, 00:12:34.5, or 754.5")
+    ap.add_argument("--every", type=float, help="grab one frame every N seconds across the whole video")
+    ap.add_argument("--range", nargs=2, metavar=("START", "END"), help="grab frames between two times")
+    ap.add_argument("--step", type=float, default=2.0, help="seconds between frames when using --range")
+    ap.add_argument("--width", type=int, default=640)
+    ap.add_argument("--cols", type=int, default=4)
+    args = ap.parse_args()
+
+    require_tool("ffmpeg")
+    video = Path(args.video)
+    if not video.exists():
+        sys.exit("File not found: %s" % video)
+    duration = probe(video)["duration"]
+
+    try:
+        times = build_times(args.times, duration, every=args.every, rng=args.range, step=args.step)
+    except ValueError as exc:
+        sys.exit(str(exc))
+
+    out_dir = video.parent / "frames"
+    out_dir.mkdir(exist_ok=True)
+    frames = []
+    for t in times:
+        name = "f_%s.jpg" % fmt_time(t).replace(":", "-")
+        p = out_dir / name
+        grab(video, t, p, args.width)
+        frames.append(p)
+        print("frame %s -> %s" % (fmt_mmss(t), p))
+    sheet = out_dir / "contact_sheet.jpg"
+    how = contact_sheet(frames, times, sheet, args.cols)
+    print("WROTE %s (%s). Open it with view_image to inspect." % (sheet, how))
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,14 @@
+# LF in the repository for all text files, regardless of the checkout platform.
+# The shell scripts and the self-test must stay LF to run on macOS and Linux.
+* text=auto eol=lf
+*.sh text eol=lf
+*.ps1 text eol=lf
+
+# Binary assets, never normalized
+*.png binary
+*.jpg binary
+*.gif binary
+*.mp4 binary
+*.wav binary
+*.ttf binary
+*.woff2 binary

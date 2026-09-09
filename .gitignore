@@ -1,0 +1,21 @@
+# creator data never goes in the repo
+channel/
+episodes/
+!examples/_example/
+examples/_example/episode.mp4
+examples/_example/episode.16k.wav
+examples/_example/previews/
+examples/_example/frames/
+examples/_example/energy.csv
+examples/_example/segments.csv
+examples/_example/transcript_compact.txt
+examples/_example/thumb_source_frame.jpg
+*.mp4
+*.mov
+*.wav
+*.srt
+*.vtt
+!examples/_example/captions.srt
+__pycache__/
+*.pyc
+.DS_Store

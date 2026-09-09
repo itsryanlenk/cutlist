@@ -1,0 +1,131 @@
+1
+00:00:00,500 --> 00:00:05,119
+Host: So you left the VC world and went solo. What was the moment you decided?
+
+2
+00:00:05,519 --> 00:00:09,273
+Guest: Honestly it was one board meeting. I realized nobody in that room had shipped anything in a year.
+
+3
+00:00:09,673 --> 00:00:15,928
+Host: That is brutal.
+
+4
+00:00:16,328 --> 00:00:19,690
+Guest: And I thought, if I am going to work this hard, I want to own the outcome.
+
+5
+00:00:20,090 --> 00:00:25,770
+Host: So how did open source turn into customers?
+
+6
+00:00:26,170 --> 00:00:30,998
+Guest: The plugin got stars first. Then companies asked for support. That was the whole funnel.
+
+7
+00:00:31,398 --> 00:00:34,688
+Host: Wait, no ads, no outbound?
+
+8
+00:00:35,088 --> 00:00:40,625
+Guest: Zero. The README was the landing page for two years.
+
+9
+00:00:41,025 --> 00:00:44,213
+Host: Okay that is insane. Let's talk numbers.
+
+10
+00:00:44,613 --> 00:00:49,781
+Guest: Right now it is a bit over twenty five k a month, solo, no funding.
+
+11
+00:00:50,181 --> 00:00:53,530
+Host: And your biggest mistake?
+
+12
+00:00:53,930 --> 00:00:57,384
+Guest: Building features nobody paid for. I had a roadmap of ghosts.
+
+13
+00:00:57,784 --> 00:01:02,906
+Host: A roadmap of ghosts. I am stealing that.
+
+14
+00:01:03,306 --> 00:01:10,441
+Guest: Take it. Every founder has one.
+
+15
+00:01:10,841 --> 00:01:14,460
+Host: What would you tell someone who is on a VC startup right now and wants out?
+
+16
+00:01:14,860 --> 00:01:18,976
+Guest: Ship one small thing that makes money before you quit. One. Then you have proof.
+
+17
+00:01:19,376 --> 00:01:25,513
+Host: Proof beats permission.
+
+18
+00:01:25,913 --> 00:01:33,652
+Guest: Exactly. Nobody gives you permission.
+
+19
+00:01:34,052 --> 00:01:39,937
+Host: So you left the VC world and went solo. What was the moment you decided?
+
+20
+00:01:40,337 --> 00:01:45,321
+Guest: Honestly it was one board meeting. I realized nobody in that room had shipped anything in a year.
+
+21
+00:01:45,721 --> 00:01:53,602
+Host: That is brutal.
+
+22
+00:01:54,002 --> 00:01:57,235
+Guest: And I thought, if I am going to work this hard, I want to own the outcome.
+
+23
+00:01:57,635 --> 00:02:04,927
+Host: So how did open source turn into customers?
+
+24
+00:02:05,327 --> 00:02:09,775
+Guest: The plugin got stars first. Then companies asked for support. That was the whole funnel.
+
+25
+00:02:10,175 --> 00:02:13,896
+Host: Wait, no ads, no outbound?
+
+26
+00:02:14,296 --> 00:02:17,885
+Guest: Zero. The README was the landing page for two years.
+
+27
+00:02:18,285 --> 00:02:22,828
+Host: Okay that is insane. Let's talk numbers.
+
+28
+00:02:23,228 --> 00:02:30,308
+Guest: Right now it is a bit over twenty five k a month, solo, no funding.
+
+29
+00:02:30,708 --> 00:02:34,612
+Host: And your biggest mistake?
+
+30
+00:02:35,012 --> 00:02:40,920
+Guest: Building features nobody paid for. I had a roadmap of ghosts.
+
+31
+00:02:41,320 --> 00:02:47,515
+Host: A roadmap of ghosts. I am stealing that.
+
+32
+00:02:47,915 --> 00:02:52,777
+Guest: Take it. Every founder has one.
+
+33
+00:02:53,177 --> 00:02:58,915
+Host: What would you tell someone who is on a VC startup right now and wants out?

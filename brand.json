@@ -1,0 +1,12 @@
+{
+  "_comment": "Applied on this repo. Do not run rebrand.py again.",
+  "brand_name": "Cutlist",
+  "slug": "cutlist",
+  "tagline": "keep",
+  "author": "Ryan Lenk",
+  "github_user": "itsryanlenk",
+  "homepage": "https://github.com/itsryanlenk/cutlist",
+  "license": "MIT",
+  "year": "2026",
+  "_applied": true
+}

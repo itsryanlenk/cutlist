@@ -1,0 +1,197 @@
+{
+  "episode_id": "_example",
+  "generated_by": "cutlist (example file, synthetic test episode)",
+  "source": {
+    "video": "episode.mp4",
+    "captions": "captions.srt",
+    "same_source": "raw",
+    "sync_gap_s": 1.1
+  },
+  "episode": {
+    "title": "He quit VC startups to go solo. Here is what worked (Guest Name)",
+    "description": "He left a VC-backed startup, went solo, and grew a bootstrapped tool with zero ads. Here is how.\n\nWhat we cover:\n- Why he walked away from the VC startup world\n- How an open-source README became the whole funnel\n- The one thing to ship before you quit your job\n- The 'roadmap of ghosts' mistake and how to avoid it\n\nChapters:\n00:00 Cold open\n00:05 Why he left\n00:39 Open source as the funnel\n01:35 The biggest mistake\n02:30 Advice for founders who want out\n\nGuest links:\n[guest site]\n[guest X]\n\n[Newsletter]: [url]\n[Site]: [url]\n[Social]: @[handle]\n\n#buildinpublic #indiehacker #bootstrapping",
+    "tags": [
+      "build in public",
+      "indie hacker",
+      "bootstrapping",
+      "solo founder",
+      "open source startup",
+      "saas founder interview",
+      "quit startup",
+      "founder podcast",
+      "mrr"
+    ],
+    "hashtags": [
+      "#buildinpublic",
+      "#indiehacker",
+      "#bootstrapping"
+    ],
+    "category_id": "27",
+    "cold_open": {
+      "start": "00:02:30.100",
+      "end": "00:02:39.800",
+      "transcript_quote": "Ship one small thing that makes money before you quit. One. Then you have proof.",
+      "why": "One complete sentence, a clear instruction, spoken by the guest with energy. Sets up the title promise in under 10 seconds."
+    },
+    "thumbnail": {
+      "frame_time": "00:02:31.000",
+      "text": "QUIT VC. GO SOLO.",
+      "side": "right",
+      "why": "Guest is on the left third of the frame at 02:31, mid-sentence, animated. Text goes on the right.",
+      "trifecta_check": {
+        "first_10s": "Cold open is the guest saying ship one thing before you quit. Thumbnail text QUIT VC. GO SOLO. is that same idea.",
+        "title": "Title says he quit VC startups to go solo. Thumbnail says QUIT VC. GO SOLO.",
+        "description": "First description line says he left a VC-backed startup and went solo. Same promise, same words."
+      }
+    }
+  },
+  "clips": [
+    {
+      "rank": 1,
+      "publish_order": 1,
+      "start": "00:02:30.100",
+      "end": "00:02:55.000",
+      "duration_s": 24.9,
+      "speaker": "Guest",
+      "hook_line": "Ship one small thing that makes money before you quit.",
+      "title": "Do this ONE thing before you quit your startup job",
+      "description": "The one thing to ship before you leave. Full episode on the channel.\n\n#buildinpublic #indiehacker #founder",
+      "hashtags": [
+        "#buildinpublic",
+        "#indiehacker",
+        "#founder"
+      ],
+      "tags": [
+        "quit your job",
+        "solo founder",
+        "bootstrapping",
+        "build in public",
+        "startup advice"
+      ],
+      "category_id": "27",
+      "why": "Direct instruction, complete thought, ends on 'nobody gives you permission'. Loud run at 02:30 confirms energy.",
+      "trim_notes": "Start on the word 'Ship'. End right after 'permission'. Cut the 0.4 s gap at 02:43.",
+      "risk": "None. Self-contained."
+    },
+    {
+      "rank": 2,
+      "publish_order": 2,
+      "start": "00:00:39.500",
+      "end": "00:01:02.000",
+      "duration_s": 22.5,
+      "speaker": "Guest",
+      "hook_line": "The plugin got stars first. Then companies asked for support.",
+      "title": "His README was the landing page for 2 years",
+      "description": "No ads. No outbound. Open source did the selling. Full episode on the channel.\n\n#opensource #indiehacker #buildinpublic",
+      "hashtags": [
+        "#opensource",
+        "#indiehacker",
+        "#buildinpublic"
+      ],
+      "tags": [
+        "open source startup",
+        "developer marketing",
+        "indie hacker",
+        "bootstrapping",
+        "saas growth"
+      ],
+      "category_id": "28",
+      "why": "Specific, surprising, contains the host's reaction ('no ads, no outbound?'). Loud run at 00:40.",
+      "trim_notes": "Start on 'The plugin'. Keep the host's question. End after 'two years'.",
+      "risk": "Guest name not said in clip; title carries it."
+    },
+    {
+      "rank": 3,
+      "publish_order": 3,
+      "start": "00:01:35.000",
+      "end": "00:01:58.500",
+      "duration_s": 23.5,
+      "speaker": "Guest",
+      "hook_line": "Building features nobody paid for. I had a roadmap of ghosts.",
+      "title": "The 'roadmap of ghosts' mistake every founder makes",
+      "description": "His biggest mistake as a solo founder, in one phrase. Full episode on the channel.\n\n#founder #buildinpublic #saas",
+      "hashtags": [
+        "#founder",
+        "#buildinpublic",
+        "#saas"
+      ],
+      "tags": [
+        "founder mistakes",
+        "product roadmap",
+        "solo founder",
+        "build in public",
+        "saas"
+      ],
+      "category_id": "27",
+      "why": "Quotable phrase, the host laughs and repeats it. Loud run at 01:35 confirms.",
+      "trim_notes": "Start on 'Building features'. End after 'Every founder has one.'",
+      "risk": "None."
+    },
+    {
+      "rank": 4,
+      "publish_order": 4,
+      "start": "00:00:05.500",
+      "end": "00:00:27.000",
+      "duration_s": 21.5,
+      "speaker": "Guest",
+      "hook_line": "It was one board meeting. Nobody in that room had shipped anything in a year.",
+      "title": "The board meeting that made him quit VC",
+      "description": "Why he left the VC startup world, in his own words. Full episode on the channel.\n\n#startup #founder #buildinpublic",
+      "hashtags": [
+        "#startup",
+        "#founder",
+        "#buildinpublic"
+      ],
+      "tags": [
+        "quit vc startup",
+        "founder story",
+        "bootstrapping",
+        "board meeting",
+        "build in public"
+      ],
+      "category_id": "22",
+      "why": "Story beat with a clear turning point. the host's 'that is brutal' lands.",
+      "trim_notes": "Start on 'It was one board meeting'. End after 'own the outcome'.",
+      "risk": "Slightly low energy per audio; the story carries it."
+    },
+    {
+      "rank": 5,
+      "publish_order": 5,
+      "start": "00:01:10.000",
+      "end": "00:01:30.000",
+      "duration_s": 20.0,
+      "speaker": "Guest",
+      "hook_line": "Right now it is a bit over twenty five k a month, solo, no funding.",
+      "title": "Solo. No funding. $25K a month. How?",
+      "description": "The numbers, and the mistake that almost stopped them. Full episode on the channel.\n\n#mrr #indiehacker #buildinpublic",
+      "hashtags": [
+        "#mrr",
+        "#indiehacker",
+        "#buildinpublic"
+      ],
+      "tags": [
+        "mrr",
+        "solo founder revenue",
+        "bootstrapped saas",
+        "indie hacker",
+        "build in public"
+      ],
+      "category_id": "27",
+      "why": "A number is a hook by itself. Pairs with the mistake question right after.",
+      "trim_notes": "Start on 'Right now'. End after 'nobody paid for'.",
+      "risk": "The $25K figure is spoken by the guest, not verified. Keep it as a quote in the title. Do not state it as fact in the description."
+    }
+  ],
+  "rejected": [
+    {
+      "start": "00:00:00.500",
+      "end": "00:00:05.000",
+      "reason": "Host's setup question needs context; not self-contained."
+    },
+    {
+      "start": "00:02:05.000",
+      "end": "00:02:20.000",
+      "reason": "Reference to earlier point ('as I said'); breaks without context."
+    }
+  ]
+}

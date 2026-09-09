@@ -1,0 +1,68 @@
+name: Bug report
+description: A script fails, the validator is wrong, or a workflow produces a bad plan.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. A concrete reproduction is worth more than a description.
+
+        **Do not report a security vulnerability here.** See `SECURITY.md` and use the
+        repository's Security tab for the private channel.
+
+        **Do not attach a real episode, caption file, or channel profile.** Describe the
+        shape of the input instead (recorder, caption format, duration, speaker labels).
+        If a caption file is the problem, cut it down to the smallest excerpt that still
+        fails and replace the words with placeholders.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did you run, and what did the script or the agent do?
+      placeholder: I ran check_inputs.py on a Riverside export and it reported SYNC FAIL with a gap of ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: selftest
+    attributes:
+      label: Self-test result
+      description: Paste the RESULT line from `bash tests/selftest.sh`, and any FAIL lines above it.
+      render: text
+    validations:
+      required: true
+  - type: dropdown
+    id: agent
+    attributes:
+      label: Agent
+      options:
+        - OpenAI Codex
+        - Claude Code
+        - Cursor
+        - Gemini CLI
+        - Other (say which in the description)
+        - Not agent-related (a script run by hand)
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows
+        - macOS
+        - Linux
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Tool versions
+      description: The first line of `ffmpeg -version` and the output of `python3 --version`.
+    validations:
+      required: true

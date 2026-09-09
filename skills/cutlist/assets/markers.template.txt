@@ -1,0 +1,6 @@
+# Live markers from the recording. One per line: time then a note.
+# Time can be MM:SS or HH:MM:SS. The note is optional.
+# Copy the marker times from your recorder or editor.
+12:34 great answer about the board meeting
+27:10 laugh, roadmap of ghosts
+41:05 clip this, advice for people stuck at VC startups

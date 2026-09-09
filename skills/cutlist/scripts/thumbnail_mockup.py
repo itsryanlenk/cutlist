@@ -1,0 +1,184 @@
+#!/usr/bin/env python3
+"""Step 7. Build ONE thumbnail mockup from a real frame of the episode.
+
+The mockup is a layout guide, not a finished thumbnail. The creator rebuilds it in
+her design tool with the same frame, the same words, and the same placement.
+
+What it does
+  1. Grabs a frame from the video at the time you give (or uses a frame file).
+  2. Fits it to 1280 x 720 (YouTube's 16:9 thumbnail size).
+  3. Darkens the text side with a gradient so the words stay readable.
+  4. Draws the text in big bold letters (4 words or fewer, 2 lines max).
+  5. Writes thumb_mock.png and thumb_mock_feed_320.png (what it looks like
+     at feed size). If you cannot read the small one, the text is too long.
+
+Needs Pillow:  python3 -m pip install pillow
+
+Usage
+  python3 scripts/thumbnail_mockup.py --video episodes/ep05/episode.mp4 --time 12:40 \
+      --text "QUIT VC. $25K MRR" --side right --out episodes/ep05/thumb_mock.png
+  python3 scripts/thumbnail_mockup.py --frame episodes/ep05/frames/f_00-12-40.000.jpg --text "..." --out ...
+  python3 scripts/thumbnail_mockup.py --video vlog.mp4 --time 0:12 --text "20 SIGNED UP ANYWAY" --tag "WEEK 7" --out ...
+"""
+
+import argparse
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _common import FF_IN, media_path, parse_time, require_tool, run  # noqa: E402
+
+try:
+    from PIL import Image, ImageDraw, ImageFont
+except ImportError:
+    sys.exit("Pillow is not installed. Run: python3 -m pip install pillow")
+
+W, H = 1280, 720
+FONT_CANDIDATES = [
+    "Impact.ttf", "impact.ttf", "/System/Library/Fonts/Supplemental/Impact.ttf",
+    "C:/Windows/Fonts/impact.ttf", "Arial Bold.ttf", "arialbd.ttf",
+    "/System/Library/Fonts/Supplemental/Arial Bold.ttf", "C:/Windows/Fonts/arialbd.ttf",
+    "/Library/Fonts/Arial Bold.ttf", "DejaVuSans-Bold.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+]
+
+
+def load_font(size):
+    for name in FONT_CANDIDATES:
+        try:
+            return ImageFont.truetype(name, size), name
+        except OSError:
+            continue
+    return ImageFont.load_default(), "default (install a bold TTF for a real preview)"
+
+
+def hex_to_rgb(h):
+    h = h.lstrip("#")
+    return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
+
+
+def cover(img):
+    """Scale and center-crop img to fill W x H."""
+    ratio = max(W / img.width, H / img.height)
+    img = img.resize((round(img.width * ratio), round(img.height * ratio)), Image.LANCZOS)
+    x = (img.width - W) // 2
+    y = (img.height - H) // 2
+    return img.crop((x, y, x + W, y + H))
+
+
+def gradient(side):
+    """Black gradient, opaque on the text side, clear on the other."""
+    g = Image.new("L", (W, 1))
+    px = g.load()
+    for x in range(W):
+        f = x / (W - 1)
+        if side == "left":
+            f = 1 - f
+        # strong near the text edge, fading to nothing past the middle
+        a = max(0.0, min(1.0, (f - 0.35) / 0.65))
+        px[x, 0] = int(a * 205)
+    return g.resize((W, H))
+
+
+def wrap_lines(words, max_lines=2):
+    if len(words) <= 2 or max_lines == 1:
+        return [" ".join(words)]
+    mid = (len(words) + 1) // 2
+    return [" ".join(words[:mid]), " ".join(words[mid:])]
+
+
+def fit_text(draw, lines, max_w, max_h):
+    for size in range(170, 60, -6):
+        font, name = load_font(size)
+        widths = [draw.textlength(ln, font=font) for ln in lines]
+        bbox = draw.textbbox((0, 0), "Ag", font=font)
+        line_h = (bbox[3] - bbox[1]) + int(size * 0.28)
+        if max(widths) <= max_w and line_h * len(lines) <= max_h:
+            return font, name, widths, line_h
+    font, name = load_font(60)
+    widths = [draw.textlength(ln, font=font) for ln in lines]
+    return font, name, widths, 70
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--video")
+    ap.add_argument("--time", help="time in the video to grab, like 12:40 or 00:12:40.5")
+    ap.add_argument("--frame", help="use this image instead of grabbing from the video")
+    ap.add_argument("--text", required=True, help="4 words or fewer")
+    ap.add_argument("--side", choices=["left", "right"], default="right",
+                    help="which side the TEXT goes on (put it opposite the face)")
+    ap.add_argument("--accent", default="#FFD400", help="accent color hex, default warm yellow")
+    ap.add_argument("--out", required=True)
+    ap.add_argument("--tag", help='small series tag in the top corner opposite the text, like "WEEK 7" or "EP 5"')
+    ap.add_argument("--no-badge", action="store_true", help="omit the small MOCKUP tag")
+    args = ap.parse_args()
+
+    out = Path(args.out)
+    feed_path = out.with_name(out.stem + "_feed_320.png")
+    # Never write over the input. The frame and the video belong to the creator.
+    for src in (args.frame, args.video):
+        if src and Path(src).resolve() in (out.resolve(), feed_path.resolve()):
+            sys.exit("--out must not be the same file as --frame or --video. Pick another output name.")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    if args.frame:
+        frame_path = Path(args.frame)
+    elif args.video and args.time:
+        require_tool("ffmpeg")
+        frame_path = out.parent / "thumb_source_frame.jpg"
+        run(["ffmpeg", "-y", "-v", "error", "-ss", "%.3f" % parse_time(args.time), *FF_IN, "-i",
+             media_path(args.video), "-frames:v", "1", "-q:v", "2", str(frame_path)])
+    else:
+        sys.exit("Give --frame, or both --video and --time.")
+
+    words = args.text.strip().split()
+    if len(words) > 4:
+        print("WARN: %d words. 4 or fewer reads at feed size. Shorten it." % len(words))
+
+    base = cover(Image.open(frame_path).convert("RGB"))
+    shade = Image.new("RGB", (W, H), (0, 0, 0))
+    base = Image.composite(shade, base, gradient(args.side))
+
+    draw = ImageDraw.Draw(base)
+    lines = wrap_lines([w.upper() for w in words])
+    max_w = int(W * 0.56)
+    font, font_name, widths, line_h = fit_text(draw, lines, max_w, int(H * 0.62))
+    accent = hex_to_rgb(args.accent)
+
+    total_h = line_h * len(lines)
+    y = (H - total_h) // 2
+    margin = 48
+    for ln, wdt in zip(lines, widths):
+        x = W - margin - wdt if args.side == "right" else margin
+        draw.text((x, y), ln, font=font, fill=(255, 255, 255), stroke_width=max(4, line_h // 14),
+                  stroke_fill=(0, 0, 0))
+        y += line_h
+    # accent bar under the text block
+    bar_w = int(max(widths))
+    bar_x = W - margin - bar_w if args.side == "right" else margin
+    draw.rectangle([bar_x, y + 6, bar_x + bar_w, y + 22], fill=accent)
+
+    if args.tag:
+        tag_font, _ = load_font(44)
+        tag = args.tag.strip().upper()
+        tw = draw.textlength(tag, font=tag_font) + 36
+        tx = W - margin - tw if args.side == "left" else margin
+        draw.rectangle([tx, 40, tx + tw, 104], fill=accent)
+        draw.text((tx + 18, 48), tag, font=tag_font, fill=(0, 0, 0))
+
+    if not args.no_badge:
+        small, _ = load_font(22)
+        draw.rectangle([14, H - 46, 126, H - 14], fill=(0, 0, 0))
+        draw.text((22, H - 42), "MOCKUP", font=small, fill=accent)
+
+    base.save(out)
+    feed = base.resize((320, 180), Image.LANCZOS)
+    feed.save(feed_path)
+    print("font: %s" % font_name)
+    print("WROTE %s" % out)
+    print("WROTE %s  <- open this one. If you cannot read it, cut words." % feed_path)
+
+
+if __name__ == "__main__":
+    main()
