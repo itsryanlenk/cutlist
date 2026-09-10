@@ -264,6 +264,6 @@ The sixth reviewer found one Medium and four Lows, each now with a unit test:
   twenty times the file.
 - `show()` now escapes a line break too, and every path a script prints or names in a
   refusal goes through it, so a folder name cannot forge a status line.
-- Smaller: an integer too large for a float, a PNG with an oversized text chunk, and a
-  `frame_time` that is not a time are `FAIL` lines; a cache longer than the video is stale;
-  the speaker list on the console is capped; the pixel budget comment says what the peak is.
+- Smaller: an integer too large for a float, a PNG with an oversized text chunk, and an
+  unparsable `frame_time` all produce `FAIL` lines; a cache longer than the video counts as
+  stale; the speaker list on the console is capped; the pixel budget comment states the peak.
