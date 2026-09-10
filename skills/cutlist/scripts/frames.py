@@ -20,8 +20,9 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _common import (FF_IN, FF_IN_IMG, IMG_OUT, commit_target, find_font, fmt_mmss, fmt_time, media_path,  # noqa: E402
-                     output_dir, parse_time, probe, require_tool, run_writing, show, temp_target, utf8_stdout)
+from _common import (FF_IN, FF_IN_IMG, IMG_OUT, check_source, commit_target, find_font, fmt_mmss, fmt_time,  # noqa: E402
+                     media_path, output_dir, parse_time, probe, require_tool, run_writing, show, temp_target,
+                     utf8_stdout)
 
 FRAME_LIMIT = 80
 FONT_CANDIDATES = ["DejaVuSans-Bold.ttf", "arialbd.ttf", "Arial Bold.ttf", "LiberationSans-Bold.ttf"]
@@ -43,16 +44,7 @@ def bounded_int(lo, hi):
 positive_int = bounded_int(1, 10 ** 9)
 width_arg = bounded_int(160, 1920)  # a tile wider than 1080p is never needed to judge a frame
 cols_arg = bounded_int(1, 10)
-ASPECT_MAX = 8.0                    # wider or taller than this is not a video
-SHEET_MAX_PIXELS = 60_000_000       # all tiles plus the sheet: about 180 MB of RGB at the very most
-
-
-def check_source(width, height):
-    """Refuse a source with no picture or with a shape no video has."""
-    if not width or not height:
-        raise ValueError("The video has no readable picture size. Is it a video?")
-    if width / height > ASPECT_MAX or height / width > ASPECT_MAX:
-        raise ValueError("The video is %dx%d, which is not a video shape." % (width, height))
+SHEET_MAX_PIXELS = 30_000_000       # tiles and sheet are both live: about 180 MB of RGB at the very most
 
 
 def tile_size(width, height, tile_w):
@@ -137,7 +129,11 @@ def contact_sheet(frames, times, out_path, cols=4, expect=None):
 
     tiles = []
     for f in frames:
-        with Image.open(f, formats=["JPEG"]) as im:
+        try:
+            im = Image.open(f, formats=["JPEG"])
+        except (OSError, ValueError, Image.DecompressionBombError):
+            raise ValueError("%s is not the JPEG tile this script wrote" % show(f))
+        with im:
             if expect and (im.width > expect[0] + 2 or im.height > expect[1] + 2):
                 raise ValueError("%s is %dx%d, larger than the tile this script wrote" % (show(f), im.width, im.height))
             tiles.append(im.convert("RGB"))
@@ -177,7 +173,7 @@ def main():
     require_tool("ffmpeg")
     video = Path(args.video)
     if not video.exists():
-        sys.exit("File not found: %s" % video)
+        sys.exit("File not found: %s" % show(video))
     info = probe(video)
     duration = info["duration"]
 

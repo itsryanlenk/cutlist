@@ -157,7 +157,7 @@ def main(argv):
         duration = probe(argv[2])["duration"]
     try:
         check(plan, duration)
-    except (AttributeError, KeyError, TypeError, ValueError) as exc:
+    except (AttributeError, KeyError, OverflowError, TypeError, ValueError) as exc:
         # A wrong type somewhere in the plan is a failed check, never a traceback.
         fail("plan: unexpected value (%s: %s)" % (type(exc).__name__, exc))
     report(plan.get("clips", []))
@@ -175,7 +175,7 @@ def check(plan, duration):
         else:
             try:
                 d = parse_time(co["end"]) - parse_time(co["start"])
-            except (KeyError, TypeError, ValueError) as exc:
+            except (KeyError, OverflowError, TypeError, ValueError) as exc:
                 fail("cold_open: bad start/end (%s)" % exc)
                 d = None
             if d is None:
@@ -199,6 +199,11 @@ def check(plan, duration):
                     fail("thumbnail.trifecta_check.%s is missing (must state how the image matches it)" % key)
             if not th.get("frame_time"):
                 fail("thumbnail: frame_time is missing")
+            else:
+                try:
+                    parse_time(th["frame_time"])
+                except ValueError as exc:
+                    fail("thumbnail: frame_time %s" % exc)
 
     clips = plan.get("clips", [])
     if not clips:
@@ -211,7 +216,7 @@ def check(plan, duration):
         label = "clip %d" % i
         try:
             s, e = parse_time(c["start"]), parse_time(c["end"])
-        except (KeyError, TypeError, ValueError) as exc:
+        except (KeyError, OverflowError, TypeError, ValueError) as exc:
             fail("%s: bad start/end (%s)" % (label, exc))
             continue
         d = e - s
@@ -227,7 +232,7 @@ def check(plan, duration):
         if "duration_s" in c:
             try:
                 ds = float(c["duration_s"])
-            except (TypeError, ValueError):
+            except (OverflowError, TypeError, ValueError):
                 ds = None
             if ds is None or not math.isfinite(ds):
                 fail("%s: duration_s is not a number" % label)

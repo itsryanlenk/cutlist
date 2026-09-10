@@ -28,8 +28,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _common import (FF_IN, IMG_OUT, commit_target, find_font, media_path, parse_time, probe, refuse_link,  # noqa: E402
-                     require_tool, run_writing, temp_target, utf8_stdout)
+from _common import (FF_IN, IMG_OUT, check_source, commit_target, find_font, media_path, parse_time, probe,  # noqa: E402
+                     refuse_link, require_tool, run_writing, show, temp_target, utf8_stdout)
 
 try:
     from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
@@ -160,7 +160,8 @@ def main():
             frame_path = Path(args.frame)
         elif args.video and args.time:
             require_tool("ffmpeg")
-            probe(args.video)  # refuses playlist formats before ffmpeg reads them
+            info = probe(args.video)  # refuses playlist formats before ffmpeg reads them
+            check_source(info["width"], info["height"])
             frame_path = out.parent / "thumb_source_frame.jpg"
             tmp = temp_target(frame_path)
             run_writing(["ffmpeg", "-y", "-v", "error", "-ss", "%.3f" % parse_time(args.time), *FF_IN, "-i",
@@ -189,7 +190,7 @@ def main():
     # and an EPS disguised as a .jpg would hand the file to Ghostscript.
     try:
         src_img = Image.open(frame_path, formats=["JPEG", "PNG"])
-    except (UnidentifiedImageError, OSError, Image.DecompressionBombError):
+    except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError):
         sys.exit("%s is not a JPEG or PNG frame this tool will open." % frame_path)
     with src_img:
         # Opening reads the header only. Check the shape and the pixel count before decoding.
@@ -245,8 +246,8 @@ def main():
     except (OSError, ValueError) as exc:
         sys.exit(str(exc))
     print("font: %s" % font_name)
-    print("WROTE %s" % out)
-    print("WROTE %s  <- open this one. If you cannot read it, cut words." % feed_path)
+    print("WROTE %s" % show(out))
+    print("WROTE %s  <- open this one. If you cannot read it, cut words." % show(feed_path))
 
 
 if __name__ == "__main__":

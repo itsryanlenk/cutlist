@@ -24,8 +24,10 @@ os.environ.setdefault("NoDefaultCurrentDirectoryInExePath", "1")
 # Limits on untrusted input. A caption file comes from a recorder or a third party, a plan
 # is written by the agent after reading it, so a script must never hang or exhaust memory
 # on either. See SECURITY.md.
-CAPTION_MAX_BYTES = 50 * 1024 * 1024  # a two-hour episode is well under 1 MB
+CAPTION_MAX_BYTES = 10 * 1024 * 1024  # a two-hour episode is well under 1 MB; parsing costs about 20x the file
 CUE_MAX_CHARS = 2000                   # one cue is a sentence or two
+CUES_MAX = 100_000                     # ten cues a second for three hours; anything more is not a caption file
+ASPECT_MAX = 8.0                       # wider or taller than this is not a video
 PLAN_MAX_BYTES = 5 * 1024 * 1024       # a plan is tens of kilobytes
 CLIPS_MAX = 200                        # a plan has 5 to 8 clips; the validator is quadratic on overlaps
 ORDER_MAX = 999                        # publish_order names a file
@@ -38,10 +40,19 @@ RUN_TIMEOUT_S = 900                    # the longest legitimate ffmpeg call is a
 # the network or another protocol. probe() checks the reported format name as a second layer.
 MEDIA_FORMATS = "mov,mp4,m4a,3gp,3g2,mj2,matroska,webm,avi,mpegts,mpeg,mxf,asf,flv,wav,aiff,mp3,aac,flac,ogg"
 FF_IN = ["-format_whitelist", MEDIA_FORMATS, "-protocol_whitelist", "file"]
-# Our own frame tiles. -pattern_type none stops the image demuxer from expanding a %d in
+# Our own frame tiles. -f image2 names the demuxer (ffmpeg would pick jpeg_pipe for a tiny
+# JPEG and then reject the option), and -pattern_type none stops it from expanding a %d in
 # the path into a sequence and reading a sibling folder's files.
-FF_IN_IMG = ["-format_whitelist", "image2,png_pipe,jpeg_pipe,mjpeg", "-protocol_whitelist", "file",
+FF_IN_IMG = ["-f", "image2", "-format_whitelist", "image2", "-protocol_whitelist", "file",
              "-pattern_type", "none"]
+
+
+def check_source(width, height):
+    """Refuse a source with no picture or with a shape no video has."""
+    if not width or not height:
+        raise ValueError("The video has no readable picture size. Is it a video?")
+    if width / height > ASPECT_MAX or height / width > ASPECT_MAX:
+        raise ValueError("The video is %dx%d, which is not a video shape." % (width, height))
 # ffmpeg's image muxer expands %d in an output path (so a folder named ep%d would send a
 # frame to ep1/). -update 1 makes it write one file to the literal path instead.
 IMG_OUT = ["-update", "1"]
@@ -148,8 +159,9 @@ def _scrub_non_ascii(m):
 
 
 def show(path):
-    """A path as printable text: a bidi override in a folder name never reaches the console."""
-    return clean_text(str(path))
+    """A path as one printable line: no bidi override, no escape, and no line break, so a
+    folder name can never forge a status line in the output."""
+    return clean_text(str(path)).replace("\n", "\\n")
 
 
 def clean_text(text):
@@ -215,14 +227,14 @@ def read_bounded(path, limit, what):
     p = Path(path)
     st = p.stat()
     if not stat.S_ISREG(st.st_mode):
-        raise ValueError("%s is not a regular file. %s must be a plain file." % (p, what))
+        raise ValueError("%s is not a regular file. %s must be a plain file." % (show(p), what))
     if st.st_size > limit:
         raise ValueError("%s is too large (%d bytes; the limit is %d). Is this really %s?" % (
-            p, st.st_size, limit, what.lower()))
+            show(p), st.st_size, limit, what.lower()))
     with open(p, "rb") as fh:
         data = fh.read(limit + 1)
     if len(data) > limit:
-        raise ValueError("%s is too large (over %d bytes)." % (p, limit))
+        raise ValueError("%s is too large (over %d bytes)." % (show(p), limit))
     return data
 
 
@@ -263,6 +275,8 @@ def parse_captions(path):
             end = parse_time(right)
         except ValueError:
             continue
+        if len(cues) >= CUES_MAX:
+            raise ValueError("More than %d cues. That is not a caption file for one video." % CUES_MAX)
         text = " ".join(lines[text_start:]).strip()[:CUE_MAX_CHARS]
         speaker = ""
         v = _VOICE_RE.match(text)  # WebVTT voice tag
@@ -356,9 +370,9 @@ def refuse_link(path):
         return
     tag = getattr(st, "st_reparse_tag", 0)
     if stat.S_ISLNK(st.st_mode) or tag in _LINK_TAGS or (tag & _NAME_SURROGATE):
-        raise ValueError("%s is a link. Remove it; the scripts never write through links." % path)
+        raise ValueError("%s is a link. Remove it; the scripts never write through links." % show(path))
     if stat.S_ISREG(st.st_mode) and st.st_nlink > 1:
-        raise ValueError("%s has more than one hard link. Remove it; the scripts never write through links." % path)
+        raise ValueError("%s has more than one hard link. Remove it; the scripts never write through links." % show(path))
 
 
 def temp_target(path):
@@ -421,7 +435,7 @@ def output_dir(video, name):
     d.mkdir(exist_ok=True)
     real = d.resolve()
     if real.parent != base.resolve():
-        raise ValueError("%s is not inside the episode folder" % d)
+        raise ValueError("%s is not inside the episode folder" % show(d))
     return real
 
 
@@ -437,7 +451,9 @@ def tool_path(name):
     """
     exts = [""]
     if os.name == "nt":
-        exts = [e.lower() for e in os.environ.get("PATHEXT", ".EXE;.COM;.BAT;.CMD").split(os.pathsep) if e] + [""]
+        # Native binaries only. A .bat or .cmd shim would run through cmd.exe, which reads
+        # metacharacters out of our arguments, and a file name is one of our arguments.
+        exts = [".exe", ".com"]
     for entry in os.environ.get("PATH", "").split(os.pathsep):
         entry = entry.strip().strip('"')
         if not entry or entry == os.curdir or not os.path.isabs(entry):

@@ -19,8 +19,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _common import (FF_IN, commit_target, fmt_mmss, load_plan, media_path, order_number, output_dir,  # noqa: E402
-                     parse_time, probe, require_tool, run_writing, temp_target, utf8_stdout)
+from _common import (FF_IN, check_source, commit_target, fmt_mmss, load_plan, media_path, order_number,  # noqa: E402
+                     output_dir, parse_time, probe, require_tool, run_writing, show, temp_target, utf8_stdout)
 
 ITEM_LIMIT = 20
 CLIP_MAX_S = 60.0
@@ -34,9 +34,14 @@ def plan_items(plan, force=False):
         items.append(("cold_open", parse_time(co["start"]), parse_time(co["end"])))
     for c in plan.get("clips", []):
         items.append(("clip_%03d" % order_number(c), parse_time(c["start"]), parse_time(c["end"])))
+    seen = set()
     for name, s, e in items:
         if e <= s:
             raise ValueError("%s ends before it starts (%s to %s)" % (name, fmt_mmss(s), fmt_mmss(e)))
+        key = (name, fmt_mmss(s))
+        if key in seen:
+            raise ValueError("two clips would write the same preview (%s at %s); fix publish_order" % key)
+        seen.add(key)
     if not force:
         if len(items) > ITEM_LIMIT:
             raise ValueError("%d items to cut; a plan has 5 to 8 clips. Pass --force if you mean it." % len(items))
@@ -47,8 +52,16 @@ def plan_items(plan, force=False):
     return items
 
 
+def vf_args(vertical):
+    """The scale filter. The longer side is bounded, so a tall source cannot encode at
+    854 by sixteen thousand; the vertical crop never asks for more width than there is."""
+    if vertical:
+        return ["-vf", "crop='min(iw,ih*9/16)':ih,scale=540:960"]
+    return ["-vf", "scale=854:854:force_original_aspect_ratio=decrease:force_divisible_by=2"]
+
+
 def cut(video, start, end, out, vertical=False):
-    vf = ["-vf", "crop=ih*9/16:ih,scale=540:960"] if vertical else ["-vf", "scale=854:-2"]
+    vf = vf_args(vertical)
     tmp = temp_target(out)
     run_writing(["ffmpeg", "-y", "-v", "error", "-ss", "%.3f" % start, "-to", "%.3f" % end, *FF_IN, "-i",
                  media_path(video), *vf, "-c:v", "libx264", "-preset", "veryfast", "-crf", "26", "-c:a", "aac",
@@ -68,8 +81,12 @@ def main():
 
     video = Path(args.video)
     if not video.exists():
-        sys.exit("File not found: %s" % video)
-    probe(video)  # refuses playlist formats before any cut
+        sys.exit("File not found: %s" % show(video))
+    info = probe(video)  # refuses playlist formats before any cut
+    try:
+        check_source(info["width"], info["height"])
+    except ValueError as exc:
+        sys.exit(str(exc))
     try:
         plan = load_plan(args.plan)
         items = plan_items(plan, force=args.force)
@@ -81,11 +98,11 @@ def main():
         for name, s, e in items:
             out = out_dir / ("%s_%s.mp4" % (name, fmt_mmss(s).replace(":", "-")))
             cut(video, s, e, out)
-            print("wrote %s  (%s to %s, %.1f s)" % (out, fmt_mmss(s), fmt_mmss(e), e - s))
+            print("wrote %s  (%s to %s, %.1f s)" % (show(out), fmt_mmss(s), fmt_mmss(e), e - s))
             if args.vertical:
                 outv = out_dir / ("%s_%s_9x16.mp4" % (name, fmt_mmss(s).replace(":", "-")))
                 cut(video, s, e, outv, vertical=True)
-                print("wrote %s  (center crop, rough guide only)" % outv)
+                print("wrote %s  (center crop, rough guide only)" % show(outv))
     except (OSError, ValueError) as exc:
         sys.exit(str(exc))
 

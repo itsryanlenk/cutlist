@@ -1096,5 +1096,143 @@ class RoundSix(unittest.TestCase):
         self.assertEqual(thumbnail_mockup.hex_to_rgb("#FFD400"), (255, 212, 0))
 
 
+class RoundSeven(unittest.TestCase):
+    """Sixth review: the preview cutter's shape, tool shims, the fallback sheet, caps, and printing."""
+
+    def test_previews_scale_by_the_longer_side_and_check_the_source(self):
+        import cut_previews
+        wide = cut_previews.vf_args(False)
+        self.assertIn("force_original_aspect_ratio=decrease", wide[1])
+        self.assertIn("force_divisible_by=2", wide[1])
+        tall = cut_previews.vf_args(True)
+        self.assertIn("min(iw,ih*9/16)", tall[1])
+        with self.assertRaises(ValueError):
+            _common.check_source(64, 2048)
+        _common.check_source(1920, 1080)
+
+    def test_previews_refuse_colliding_names(self):
+        import cut_previews
+        plan = {"episode": {}, "clips": [
+            {"publish_order": 1, "start": "0:10", "end": "0:30"},
+            {"publish_order": 1, "start": "0:10.5", "end": "0:31"}]}
+        with self.assertRaises(ValueError):
+            cut_previews.plan_items(plan)
+
+    @unittest.skipUnless(WINDOWS, "PATHEXT shims are a Windows thing")
+    def test_tool_path_ignores_batch_shims(self):
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "ffprobe.bat").write_text("@echo off\r\ncalc\r\n", encoding="utf-8")
+            (Path(d) / "ffprobe.cmd").write_text("@echo off\r\n", encoding="utf-8")
+            old = os.environ.get("PATH", "")
+            os.environ["PATH"] = d + os.pathsep + old
+            try:
+                found = _common.tool_path("ffprobe")
+            finally:
+                os.environ["PATH"] = old
+            if found is not None:
+                self.assertTrue(found.lower().endswith((".exe", ".com")), found)
+                self.assertNotEqual(Path(found).parent.resolve(), Path(d).resolve())
+
+    def test_image_inputs_force_the_image_demuxer(self):
+        i = _common.FF_IN_IMG.index("-f")
+        self.assertEqual(_common.FF_IN_IMG[i + 1], "image2")
+        self.assertLess(i, _common.FF_IN_IMG.index("-pattern_type"))
+
+    @unittest.skipUnless(HAVE_PIL and shutil.which("ffmpeg"), "needs Pillow to make tiles and ffmpeg for the fallback")
+    def test_fallback_contact_sheet_works_on_tiny_tiles(self):
+        from PIL import Image
+        import frames
+        with tempfile.TemporaryDirectory() as d:
+            tiles = []
+            for i in range(2):
+                p = Path(d) / ("f_%d.jpg" % i)
+                Image.new("RGB", (160, 20), (10 * i, 0, 0)).save(p, quality=50)
+                tiles.append(p)
+            out = Path(d) / "sheet.jpg"
+            saved = sys.modules.get("PIL")
+            sys.modules["PIL"] = None  # makes `from PIL import ...` raise ImportError inside the function
+            try:
+                how = frames.contact_sheet(tiles, [0.0, 1.0], out, 2, (160, 20))
+            finally:
+                if saved is not None:
+                    sys.modules["PIL"] = saved
+                else:
+                    del sys.modules["PIL"]
+            self.assertIn("ffmpeg", how)
+            self.assertTrue(out.exists() and out.stat().st_size > 0)
+
+    def test_caption_caps_are_tight(self):
+        self.assertLessEqual(_common.CAPTION_MAX_BYTES, 10 * 1024 * 1024)
+        old = _common.CUES_MAX
+        _common.CUES_MAX = 3
+        try:
+            body = "".join("%d\n00:00:%02d,000 --> 00:00:%02d,500\nhi\n\n" % (i, i, i) for i in range(1, 6))
+            with tempfile.TemporaryDirectory() as d:
+                with self.assertRaises(ValueError) as cm:
+                    _common.parse_captions(_write(d, body))
+            self.assertIn("cues", str(cm.exception))
+        finally:
+            _common.CUES_MAX = old
+
+    def test_show_never_emits_a_line_break(self):
+        out = _common.show("ep\nSYNC: OK\r\x1b[31m/x")
+        self.assertNotIn("\n", out)
+        self.assertNotIn("\r", out)
+        self.assertNotIn("\x1b", out)
+        self.assertIn("SYNC: OK", out)
+
+    def test_check_plan_survives_huge_ints_and_bad_frame_time(self):
+        plan = json.loads((ROOT / "examples" / "_example" / "clip_plan.json").read_text(encoding="utf-8"))
+        for mutate in (lambda p: p["clips"][0].__setitem__("duration_s", int("1" + "0" * 400)),
+                       lambda p: p["episode"]["thumbnail"].__setitem__("frame_time", "abc")):
+            q = json.loads(json.dumps(plan)) if False else json.loads((ROOT / "examples" / "_example" / "clip_plan.json").read_text(encoding="utf-8"))
+            mutate(q)
+            with tempfile.TemporaryDirectory() as d:
+                p = Path(d) / "plan.json"
+                p.write_text(json.dumps(q), encoding="utf-8")
+                r = subprocess.run([PY, str(SCRIPTS / "check_plan.py"), str(p)],
+                                   capture_output=True, text=True, encoding="utf-8", errors="replace")
+            self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+            self.assertNotIn("Traceback", r.stderr)
+
+    def test_audio_cache_longer_than_the_video_is_stale(self):
+        import wave
+        import audio_energy
+        with tempfile.TemporaryDirectory() as d:
+            long_wav = Path(d) / "episode.16k.wav"
+            with wave.open(str(long_wav), "wb") as wf:
+                wf.setnchannels(1)
+                wf.setsampwidth(2)
+                wf.setframerate(16000)
+                wf.writeframes(b"\x00\x00" * 16000 * 60)  # 60 seconds
+            self.assertFalse(audio_energy.cache_ok(long_wav, duration=1.0))
+            self.assertTrue(audio_energy.cache_ok(long_wav, duration=58.0))
+
+    @unittest.skipUnless(HAVE_PIL, "Pillow not installed")
+    def test_thumbnail_refuses_a_png_with_a_huge_text_chunk(self):
+        from PIL import Image, PngImagePlugin
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "frame.png"
+            info = PngImagePlugin.PngInfo()
+            info.add_text("k", "x" * 3_000_000, zip=True)
+            Image.new("RGB", (64, 36)).save(p, pnginfo=info)
+            r = subprocess.run([PY, str(SCRIPTS / "thumbnail_mockup.py"), "--frame", str(p), "--text", "HI",
+                                "--out", str(Path(d) / "thumb_mock.png")],
+                               capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60)
+            self.assertNotIn("Traceback", r.stderr)
+
+    def test_speakers_summary_is_bounded(self):
+        import check_inputs
+        line = check_inputs.speakers_summary(["S%d" % i for i in range(7000)])
+        self.assertLess(len(line), 400)
+        self.assertIn("7000", line)
+
+    @unittest.skipIf(WINDOWS, "device path is POSIX")
+    def test_probe_refuses_a_device_on_posix(self):
+        with self.assertRaises(SystemExit) as cm:
+            _common.probe("/dev/zero")
+        self.assertIn("regular file", str(cm.exception))
+
+
 if __name__ == "__main__":
     unittest.main()

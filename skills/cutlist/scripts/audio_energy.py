@@ -31,12 +31,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _common import (FF_IN, commit_target, fmt_mmss, media_path, probe, refuse_link, require_tool,  # noqa: E402
-                     run_writing, temp_target, utf8_stdout, write_bytes_safely)
+                     run_writing, show, temp_target, utf8_stdout, write_bytes_safely)
 
 MAX_HOURS_DEFAULT = 6.0  # a 16 kHz mono WAV is about 115 MB per hour beside the creator's video
 
 
-def cache_ok(wav):
+def cache_ok(wav, duration=None):
     """True only for a regular file with the exact shape this script writes: 16 kHz, mono, 16-bit.
 
     A planted file with a valid header and a 1 Hz sample rate would otherwise turn every
@@ -47,8 +47,11 @@ def cache_ok(wav):
         if not stat.S_ISREG(st.st_mode):
             return False
         with wave.open(str(wav), "rb") as wf:
-            return (wf.getframerate() == 16000 and wf.getnchannels() == 1
-                    and wf.getsampwidth() == 2 and wf.getnframes() > 0)
+            if not (wf.getframerate() == 16000 and wf.getnchannels() == 1
+                    and wf.getsampwidth() == 2 and wf.getnframes() > 0):
+                return False
+            # A cache longer than the video was not made from it (and would dodge --max-hours).
+            return duration is None or wf.getnframes() / 16000.0 <= duration + 5
     except (wave.Error, EOFError, OSError):
         return False
 
@@ -64,10 +67,10 @@ def window_arg(text):
     return v
 
 
-def extract_wav(video, wav, max_hours):
+def extract_wav(video, wav, max_hours, duration=None):
     require_tool("ffmpeg")
     refuse_link(wav)
-    if wav.exists() and wav.stat().st_mtime >= video.stat().st_mtime and cache_ok(wav):
+    if wav.exists() and wav.stat().st_mtime >= video.stat().st_mtime and cache_ok(wav, duration):
         return
     tmp = temp_target(wav)
     run_writing(["ffmpeg", "-y", "-v", "error", *FF_IN, "-i", media_path(video), "-t", "%.3f" % (max_hours * 3600),
@@ -126,7 +129,7 @@ def main():
 
     video = Path(args.video)
     if not video.exists():
-        sys.exit("File not found: %s" % video)
+        sys.exit("File not found: %s" % show(video))
     if args.window <= 0 or args.max_hours <= 0:
         sys.exit("--window and --max-hours must be positive.")
     duration = probe(video)["duration"]
@@ -135,7 +138,7 @@ def main():
             duration / 3600, math.ceil(duration / 3600)))
     wav = video.with_suffix(".16k.wav")
     try:
-        extract_wav(video, wav, args.max_hours)
+        extract_wav(video, wav, args.max_hours, duration)
         rows = window_db(wav, args.window)
     except (OSError, ValueError, wave.Error, EOFError) as exc:
         sys.exit(str(exc))
@@ -174,7 +177,7 @@ def main():
     if silent:
         print("Quiet windows (possible dead air): %d. First few: %s" % (
             len(silent), ", ".join(fmt_mmss(t) for t in silent[:8])))
-    print("WROTE %s" % out)
+    print("WROTE %s" % show(out))
 
 
 if __name__ == "__main__":

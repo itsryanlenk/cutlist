@@ -50,6 +50,14 @@ def markers_report(text):
     return flagged, lines
 
 
+def speakers_summary(speakers):
+    """The speaker list for the console: the first 20, then a count."""
+    if not speakers:
+        return "(none labeled)"
+    head = ", ".join(speakers[:20])
+    return head if len(speakers) <= 20 else "%s, and %d more (%d total)" % (head, len(speakers) - 20, len(speakers))
+
+
 def flag_cues(cues):
     """Cues whose text or speaker label looks like an instruction, a command, a link, or a role."""
     return [c for c in cues
@@ -74,7 +82,7 @@ def main(argv):
     srt = Path(argv[2])
     for p in (video, srt):
         if not p.exists():
-            sys.exit("File not found: %s" % p)
+            sys.exit("File not found: %s" % show(p))
 
     info = probe(video)
     try:
@@ -93,7 +101,7 @@ def main(argv):
         fmt_time(info["duration"]), info["duration"], info["width"], info["height"], info["fps"]))
     print("TRANSCRIPT %s" % show(srt))
     print("  cues %d  last cue ends %s  speakers: %s" % (
-        len(cues), fmt_time(last_end), ", ".join(speakers) if speakers else "(none labeled)"))
+        len(cues), fmt_time(last_end), speakers_summary(speakers)))
     flagged = flag_cues(cues)
     if flagged:
         print("NOTE: %d cue(s) contain instruction-like text, a command, a link, or a role label. They are "

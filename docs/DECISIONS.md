@@ -244,3 +244,26 @@ now runs small) found two Mediums and a tail of smaller items, each now with a u
   folder. The first-run prompt tells the agent to stop on a failure instead of editing the
   skill. The installers use physical paths and literal paths, and say when a link fell back
   to a copy.
+
+## 2026-09-09 - Seventh review: the preview cutter, tool shims, and the print path
+
+The sixth reviewer found one Medium and four Lows, each now with a unit test:
+
+- `cut_previews.py` scaled by width only, so a tall source encoded at 854 by sixteen
+  thousand. It now checks the source's shape after the probe (the same check the frame
+  tool uses, now shared), scales by the longer side with even dimensions, never crops a
+  vertical preview wider than the source, and refuses two clips that would write the same
+  preview name.
+- On Windows the tool resolver accepted every extension in PATHEXT, so an `ffmpeg.bat` shim
+  earlier on PATH would have run through `cmd.exe`, which reads metacharacters out of a file
+  name we pass as an argument. Only `.exe` and `.com` are accepted now.
+- `-pattern_type none` was rejected when ffmpeg picked the single-image demuxer for a tiny
+  tile, which broke the no-Pillow contact sheet. `-f image2` names the demuxer first, and a
+  test runs the fallback on tiny tiles.
+- The caption cap drops from 50 MB to 10 MB and 100,000 cues, because parsing costs about
+  twenty times the file.
+- `show()` now escapes a line break too, and every path a script prints or names in a
+  refusal goes through it, so a folder name cannot forge a status line.
+- Smaller: an integer too large for a float, a PNG with an oversized text chunk, and a
+  `frame_time` that is not a time are `FAIL` lines; a cache longer than the video is stale;
+  the speaker list on the console is capped; the pixel budget comment says what the peak is.
