@@ -1401,5 +1401,84 @@ class RoundNine(unittest.TestCase):
             self.assertFalse((real_dir / "thumb_mock.png").exists())
 
 
+class RoundTen(unittest.TestCase):
+    """Ninth review: predictable temp names, Pillow save failures, --help, junctioned frames/."""
+
+    def test_rebrand_ignores_planted_temp_names(self):
+        import rebrand
+        d = Path(tempfile.mkdtemp())
+        outside = Path(tempfile.mkdtemp())
+        try:
+            (d / "scripts").mkdir()
+            shutil.copy(ROOT / "scripts" / "rebrand.py", d / "scripts" / "rebrand.py")
+            skill_dir = d / "skills" / rebrand.OLD_SLUG
+            skill_dir.mkdir(parents=True)
+            (skill_dir / "SKILL.md").write_bytes(("---\nname: %s\n---\n" % rebrand.OLD_SLUG).encode())
+            (d / "README.md").write_bytes(("# %s\n" % rebrand.OLD_NAME).encode())
+            cfg = {"brand_name": "Demo Brand", "slug": "demo-brand", "author": "A Person",
+                   "github_user": "someone", "homepage": "", "tagline": "keep", "license": "MIT", "year": "2026"}
+            (d / "brand.json").write_text(json.dumps(cfg), encoding="utf-8")
+            victims = []
+            for planted in ("README.md.rebrand-tmp", "brand.json.tmp", ".README.md.rebrand-tmp"):
+                v = outside / (planted + ".victim")
+                v.write_bytes(b"untouched\n")
+                os.link(v, d / planted)
+                victims.append(v)
+            r = subprocess.run([PY, str(d / "scripts" / "rebrand.py"), str(d / "brand.json")],
+                               capture_output=True, text=True, cwd=str(d), encoding="utf-8", errors="replace")
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+            for v in victims:
+                self.assertEqual(v.read_bytes(), b"untouched\n", "rebrand wrote through a planted temp name")
+            self.assertIn(b"Demo Brand", (d / "README.md").read_bytes())
+            self.assertEqual(os.stat(d / "README.md").st_nlink, 1)
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+            shutil.rmtree(outside, ignore_errors=True)
+
+    @unittest.skipUnless(HAVE_PIL, "Pillow not installed")
+    def test_thumbnail_save_failure_leaves_no_temp(self):
+        from PIL import Image
+        with tempfile.TemporaryDirectory() as d:
+            frame = Path(d) / "frame.png"
+            Image.new("RGB", (64, 36), (90, 90, 90)).save(frame)
+            r = subprocess.run([PY, str(SCRIPTS / "thumbnail_mockup.py"), "--frame", str(frame), "--text", "HI",
+                                "--out", str(Path(d) / "thumb.txt")],
+                               capture_output=True, text=True, encoding="utf-8", errors="replace")
+            self.assertNotEqual(r.returncode, 0)
+            self.assertNotIn("Traceback", r.stderr)
+            self.assertEqual(list(Path(d).glob(".cutlist-*")), [], "temp file left behind")
+
+    def test_check_plan_help(self):
+        r = subprocess.run([PY, str(SCRIPTS / "check_plan.py"), "--help"],
+                           capture_output=True, text=True, encoding="utf-8", errors="replace")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("Usage", r.stdout)
+
+    @unittest.skipUnless(WINDOWS and HAVE_PIL, "junction fixture is Windows-only")
+    def test_thumbnail_frames_junction_does_not_widen_the_folder(self):
+        from PIL import Image
+        d = Path(tempfile.mkdtemp())
+        try:
+            ep = d / "ep"
+            ep.mkdir()
+            target = d / "elsewhere" / "frames_target"
+            target.mkdir(parents=True)
+            Image.new("RGB", (64, 36), (90, 90, 90)).save(target / "f.jpg")
+            link = ep / "frames"
+            mk = subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(target)], capture_output=True, text=True)
+            self.assertEqual(mk.returncode, 0, mk.stdout + mk.stderr)
+            escape = d / "elsewhere" / "thumb_mock.png"
+            r = subprocess.run([PY, str(SCRIPTS / "thumbnail_mockup.py"), "--frame", str(link / "f.jpg"), "--text", "HI",
+                                "--out", str(escape)], capture_output=True, text=True, encoding="utf-8", errors="replace")
+            self.assertNotEqual(r.returncode, 0, "wrote beside the junction target")
+            self.assertFalse(escape.exists())
+            r = subprocess.run([PY, str(SCRIPTS / "thumbnail_mockup.py"), "--frame", str(link / "f.jpg"), "--text", "HI",
+                                "--out", str(ep / "thumb_mock.png")], capture_output=True, text=True, encoding="utf-8", errors="replace")
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        finally:
+            subprocess.run(["cmd", "/c", "rmdir", str(d / "ep" / "frames")], capture_output=True)
+            shutil.rmtree(d, ignore_errors=True)
+
+
 if __name__ == "__main__":
     unittest.main()

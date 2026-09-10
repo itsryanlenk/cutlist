@@ -16,13 +16,14 @@ Usage
 """
 
 import argparse
+import io
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _common import (SafeParser, FF_IN, FF_IN_IMG, IMG_OUT, check_source, commit_target, find_font, fmt_mmss, fmt_time,  # noqa: E402
                      media_path, output_dir, parse_time, probe, require_tool, run_writing, show, temp_target,
-                     utf8_stdout)
+                     utf8_stdout, write_bytes_safely)
 
 FRAME_LIMIT = 80
 FONT_CANDIDATES = ["DejaVuSans-Bold.ttf", "arialbd.ttf", "Arial Bold.ttf", "LiberationSans-Bold.ttf"]
@@ -123,8 +124,10 @@ def contact_sheet(frames, times, out_path, cols=4, expect=None):
         for f in frames:
             inputs += [*FF_IN_IMG, "-i", media_path(f)]
         filt = "".join("[%d:v]" % i for i in range(n)) + "concat=n=%d:v=1:a=0,tile=%dx%d" % (n, cols, rows)
+        tmp = temp_target(out_path)
         run_writing(["ffmpeg", "-y", "-v", "error"] + inputs + ["-filter_complex", filt, "-frames:v", "1",
-                     *IMG_OUT, str(out_path)], out_path)
+                     *IMG_OUT, str(tmp)], tmp)
+        commit_target(tmp, out_path)
         return "ffmpeg (no time labels; install Pillow for labels: python3 -m pip install pillow)"
 
     tiles = []
@@ -154,7 +157,9 @@ def contact_sheet(frames, times, out_path, cols=4, expect=None):
         label = fmt_mmss(t)
         draw.rectangle([x, y, x + 120, y + 40], fill=(0, 0, 0))
         draw.text((x + 8, y + 5), label, fill=(255, 230, 0), font=font)
-    sheet.save(out_path, quality=85)
+    buf = io.BytesIO()
+    sheet.save(buf, format="JPEG", quality=85)  # in memory first: a failed save leaves no file
+    write_bytes_safely(out_path, buf.getvalue())
     return "Pillow"
 
 
@@ -195,9 +200,7 @@ def main():
             frames.append(p)
             print("frame %s -> %s" % (fmt_mmss(t), show(p)))
         sheet = out_dir / "contact_sheet.jpg"
-        tmp = temp_target(sheet)
-        how = contact_sheet(frames, times, tmp, args.cols, (tw, th))
-        commit_target(tmp, sheet)
+        how = contact_sheet(frames, times, sheet, args.cols, (tw, th))
     except (OSError, ValueError) as exc:
         sys.exit(str(exc))
     print("WROTE %s (%s). Open it with view_image to inspect." % (show(sheet), how))

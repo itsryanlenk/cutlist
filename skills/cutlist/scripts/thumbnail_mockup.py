@@ -22,6 +22,7 @@ Usage
 """
 
 import argparse
+import io
 import os
 import re
 import stat
@@ -30,7 +31,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _common import (SafeParser, FF_IN, IMG_OUT, check_source, commit_target, find_font, media_path, parse_time, probe,  # noqa: E402
-                     refuse_link, require_tool, run_writing, show, temp_target, utf8_stdout)
+                     refuse_link, require_tool, run_writing, show, temp_target, utf8_stdout, write_bytes_safely)
 
 try:
     from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
@@ -153,8 +154,10 @@ def main():
     if args.video:
         roots.append(Path(os.path.abspath(args.video)).parent.resolve())  # the folder of the name given, link or not
     if args.frame:
-        fp = Path(os.path.abspath(args.frame)).parent.resolve()
-        roots += [fp, fp.parent]
+        # The folder of the frame as named, and that folder's parent as named. Resolving the
+        # frames folder first would let a junction there point the rule at another tree.
+        fp = Path(os.path.abspath(args.frame)).parent
+        roots += [fp.resolve(), fp.parent.resolve()]
     if not roots:
         sys.exit("Give --frame, or both --video and --time.")
     out_parent = out.resolve().parent
@@ -249,13 +252,16 @@ def main():
         draw.text((22, H - 42), "MOCKUP", font=small, fill=accent)
 
     try:
-        tmp = temp_target(out)
-        base.save(tmp)
-        commit_target(tmp, out)
+        fmt = Image.registered_extensions().get(out.suffix.lower())
+        if fmt not in ("PNG", "JPEG"):
+            sys.exit("--out must end in .png or .jpg")
+        buf = io.BytesIO()
+        base.save(buf, format=fmt)  # in memory first: a save that fails leaves no file behind
+        write_bytes_safely(out, buf.getvalue())
         feed = base.resize((320, 180), Image.LANCZOS)
-        tmp = temp_target(feed_path)
-        feed.save(tmp)
-        commit_target(tmp, feed_path)
+        buf = io.BytesIO()
+        feed.save(buf, format="PNG")
+        write_bytes_safely(feed_path, buf.getvalue())
     except (OSError, ValueError) as exc:
         sys.exit(str(exc))
     print("font: %s" % font_name)

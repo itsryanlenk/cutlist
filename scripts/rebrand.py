@@ -21,12 +21,29 @@ import json
 import os
 import re
 import sys
+import tempfile
 from pathlib import Path
 
 TEXT_EXT = {".md", ".py", ".sh", ".ps1", ".json", ".yml", ".yaml", ".txt", ".toml", ""}
 SKIP_DIRS = {".git", "__pycache__", "node_modules", "episodes", "channel"}
 OLD_SLUG = "podcast-clipper"
 OLD_NAME = "Podcast Clipper"
+
+
+def replace_with(p, data):
+    """Write data over p through a temp file with an unguessable name, then a replace.
+    A predictable temp name could be pre-planted as a hard link and written through."""
+    fd, tmp = tempfile.mkstemp(dir=str(p.parent), prefix="." + p.name + ".", suffix=".rebrand-tmp")
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(data)
+        os.replace(tmp, p)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
 
 
 def main():
@@ -95,18 +112,14 @@ def main():
         if new != s:
             touched.append(p.relative_to(root))
             if not dry:
-                tmp = p.with_name(p.name + ".rebrand-tmp")
-                tmp.write_bytes(new.encode("utf-8"))
-                os.replace(tmp, p)
+                replace_with(p, new.encode("utf-8"))
 
     # Fill brand.json's own placeholders so no bracket text remains anywhere, and mark it applied.
     if not dry:
         cfg["homepage"] = cfg.get("homepage", "").replace("[GITHUB USER]", gh).replace("[SLUG]", slug)
         cfg["_comment"] = "Applied on this repo. Do not run rebrand.py again."
         cfg["_applied"] = True
-        tmp = cfg_path.with_name(cfg_path.name + ".tmp")
-        tmp.write_bytes((json.dumps(cfg, indent=2) + "\n").encode("utf-8"))
-        os.replace(tmp, cfg_path)
+        replace_with(cfg_path, (json.dumps(cfg, indent=2) + "\n").encode("utf-8"))
 
     old_dir = root / "skills" / OLD_SLUG
     new_dir = root / "skills" / slug

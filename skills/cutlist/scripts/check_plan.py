@@ -145,6 +145,9 @@ def report(clips):
 
 def main(argv):
     utf8_stdout()
+    if len(argv) > 1 and argv[1] in ("-h", "--help"):
+        print(__doc__)
+        return
     if len(argv) < 2:
         sys.exit(__doc__)
     try:

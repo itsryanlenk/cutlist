@@ -303,3 +303,20 @@ The eighth reviewer found three Lows and one item to verify on POSIX, each now w
 - Smaller: the validator's cold-open limit is 10 seconds, the number `SKILL.md` states
   (it had been 12); speaker labels on the console are cut at 40 characters; the one unquoted
   `--out` in the thumbnail reference is quoted; the self-test checks a preview's duration.
+
+## 2026-09-09 - Tenth review: temp names and save failures
+
+The ninth reviewer found one Low and four small items, each now with a test:
+
+- `rebrand.py` wrote through a temp name that anyone could guess (`README.md.rebrand-tmp`),
+  so a hard link planted under that name in a clone was written through before the replace.
+  Every rebrand write now goes through `mkstemp`, the same primitive the scripts use, and
+  the test plants both old names as links and checks that neither is touched.
+- A Pillow save that failed (an output name with an unknown extension) left an empty temp
+  file. The thumbnail, its feed-size copy, and the contact sheet are now rendered in memory
+  and written through the same safe write as every text output.
+- The thumbnail's folder rule resolved the frames folder before taking its parent, so a
+  junction there could widen the rule to another tree. It now resolves the frame's folder
+  and that folder's parent as named.
+- `check_plan.py --help` prints its usage; SECURITY.md says "at most hour 100", which is
+  what the code does.
