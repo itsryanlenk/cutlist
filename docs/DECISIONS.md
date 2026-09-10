@@ -356,7 +356,7 @@ different things and are now handled separately:
   are not in that file, so nothing can be cut at them whatever caused the mismatch.
 - **Video past the last word** stops and names both causes, the silent tail and the mismatched
   export, and tells the creator how to say which it is. `--silent-tail` proceeds and prints the
-  accepted gap on its own line, so an accepted tail is never swallowed quietly.
+  accepted gap on its own line, so the creator and the agent both see what was let through.
 
 The flag is the creator's answer about their own file, and it is the one thing the agent cannot
 see from here. `SKILL.md` rules 4 and 9 forbid the agent passing it on its own judgement, the
