@@ -320,3 +320,28 @@ The ninth reviewer found one Low and four small items, each now with a test:
   and that folder's parent as named.
 - `check_plan.py --help` prints its usage; SECURITY.md says "at most hour 100", which is
   what the code does.
+
+## 2026-09-09 - Eleventh review, and the exit rule
+
+The tenth reviewer found two Lows and four one-line items, each now with a test, and stated
+the finding that matters for the gate: nothing in the round overwrote a source, executed
+bundle content, or escaped the episode folder without the agent itself typing the escape.
+
+- The thumbnail's folder rule always added the frame folder's parent, so a frame in the
+  episode root (where the script writes `thumb_source_frame.jpg`) let `--out` name a sibling
+  episode. The parent is added only when the frame sits in a `frames/` subfolder.
+- `ffprobe -show_format` echoed every metadata tag, and a tag can be as large as the file.
+  The probe now asks only for the five fields it reads.
+- Smaller: a truncated image, an unreadable caption file, and a symlink loop on Python 3.9
+  to 3.12 are clean exits; temp paths are absolute so ffmpeg never reads a leading name as a
+  protocol; SECURITY.md says what the boundary is when the episode folder is itself a link.
+
+**D16. The exit rule for security review is impact, not label.** Ten adversarial rounds ran
+before release. Rounds one to three found Highs a hostile export bundle could use against a
+creator; rounds four to seven found Mediums that were each a few lines; rounds eight to ten
+found Lows that needed a hostile clone of the maintainer's own tool or a message cosmetic. A
+fresh reviewer told to find something will always find a Low. So the gate is: a round
+passes when nothing in it lets an attacker-controlled bundle run code, read or write outside
+the episode folder or through the creator's files, put attacker text into the agent's
+context, or exhaust the machine within the stated limits. Findings outside that rule are
+logged here and fixed when they are cheap.

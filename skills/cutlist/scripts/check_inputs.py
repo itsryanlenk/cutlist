@@ -101,7 +101,7 @@ def main(argv):
     info = probe(video)
     try:
         cues = parse_captions(srt)
-    except ValueError as exc:
+    except (OSError, ValueError) as exc:
         sys.exit(str(exc))
     if not cues:
         sys.exit("No cues found in %s. Is it a real .srt or .vtt file?" % show(srt))

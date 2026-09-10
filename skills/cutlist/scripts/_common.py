@@ -393,7 +393,7 @@ def temp_target(path):
     refuse_link(path)
     fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=".cutlist-", suffix=path.suffix)
     os.close(fd)
-    return Path(tmp)
+    return Path(os.path.abspath(tmp))  # absolute, so ffmpeg never reads a leading name as a protocol
 
 
 def commit_target(tmp, path):
@@ -525,6 +525,14 @@ def media_path(path):
     return os.path.abspath(str(path))
 
 
+def probe_cmd(video):
+    """The ffprobe command. Only the fields probe() reads are requested: -show_format would
+    echo every metadata tag, and a tag can be as large as the file."""
+    return ["ffprobe", "-v", "error", "-print_format", "json", "-show_entries",
+            "format=format_name,duration:stream=codec_type,width,height,avg_frame_rate",
+            *FF_IN, media_path(video)]
+
+
 def probe(video):
     """Return {"duration", "width", "height", "fps"} for a media file.
 
@@ -538,10 +546,7 @@ def probe(video):
         sys.exit("Cannot read %s: %s" % (show(video), exc.strerror or exc))
     if not stat.S_ISREG(st.st_mode):
         sys.exit("%s is not a regular file. The video must be a plain file." % show(video))
-    out = run([
-        "ffprobe", "-v", "error", "-print_format", "json",
-        "-show_format", "-show_streams", *FF_IN, media_path(video),
-    ])
+    out = run(probe_cmd(video))
     try:
         data = json.loads(out)
     except ValueError:

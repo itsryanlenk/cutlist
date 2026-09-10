@@ -1480,5 +1480,64 @@ class RoundTen(unittest.TestCase):
             shutil.rmtree(d, ignore_errors=True)
 
 
+class RoundEleven(unittest.TestCase):
+    """Tenth review: the frame-in-root folder rule, probe output size, and small clean exits."""
+
+    @unittest.skipUnless(HAVE_PIL, "Pillow not installed")
+    def test_thumbnail_frame_in_episode_root_does_not_widen_the_folder(self):
+        from PIL import Image
+        with tempfile.TemporaryDirectory() as d:
+            episodes = Path(d) / "episodes"
+            ep = episodes / "ep05"
+            ep.mkdir(parents=True)
+            frame = ep / "thumb_source_frame.jpg"
+            Image.new("RGB", (64, 36), (90, 90, 90)).save(frame)
+
+            def run(out):
+                return subprocess.run([PY, str(SCRIPTS / "thumbnail_mockup.py"), "--frame", str(frame), "--text", "HI",
+                                       "--out", str(out)], capture_output=True, text=True, encoding="utf-8", errors="replace")
+            r = run(episodes / "thumb_mock.png")
+            self.assertNotEqual(r.returncode, 0, "wrote into the parent of the episode folder")
+            self.assertFalse((episodes / "thumb_mock.png").exists())
+            (episodes / "ep04").mkdir()
+            r = run(episodes / "ep04" / "thumb_mock.png")
+            self.assertNotEqual(r.returncode, 0, "wrote into a sibling episode")
+            r = run(ep / "thumb_mock.png")
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+    def test_probe_asks_only_for_the_fields_it_uses(self):
+        cmd = _common.probe_cmd("x.mp4")
+        self.assertIn("-show_entries", cmd)
+        self.assertNotIn("-show_format", cmd)
+        self.assertNotIn("-show_streams", cmd)
+
+    @unittest.skipUnless(HAVE_PIL, "Pillow not installed")
+    def test_thumbnail_refuses_a_truncated_image_cleanly(self):
+        from PIL import Image
+        with tempfile.TemporaryDirectory() as d:
+            whole = Path(d) / "whole.png"
+            Image.new("RGB", (640, 360), (90, 90, 90)).save(whole)
+            data = whole.read_bytes()
+            cut = Path(d) / "frame.png"
+            cut.write_bytes(data[: len(data) // 2])
+            r = subprocess.run([PY, str(SCRIPTS / "thumbnail_mockup.py"), "--frame", str(cut), "--text", "HI",
+                                "--out", str(Path(d) / "thumb_mock.png")],
+                               capture_output=True, text=True, encoding="utf-8", errors="replace")
+            self.assertNotEqual(r.returncode, 0)
+            self.assertNotIn("Traceback", r.stderr)
+            self.assertEqual(list(Path(d).glob(".cutlist-*")), [])
+
+    def test_temp_target_is_absolute(self):
+        with tempfile.TemporaryDirectory() as d:
+            old = os.getcwd()
+            os.chdir(d)
+            try:
+                tmp = _common.temp_target(Path("rel.txt"))
+                self.assertTrue(tmp.is_absolute())
+                tmp.unlink()
+            finally:
+                os.chdir(old)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -145,22 +145,29 @@ def main():
     out = Path(args.out)
     feed_path = out.with_name(out.stem + "_feed_320.png")
     # Never write over the input. The frame and the video belong to the creator.
-    for src in (args.frame, args.video):
-        if src and Path(src).resolve() in (out.resolve(), feed_path.resolve()):
-            sys.exit("--out must not be the same file as --frame or --video. Pick another output name.")
-    # Write only inside the episode folder: the folder of --video, or the folder of --frame
-    # and its parent (frames/ sits inside the episode folder). Never create folders.
-    roots = []
-    if args.video:
-        roots.append(Path(os.path.abspath(args.video)).parent.resolve())  # the folder of the name given, link or not
-    if args.frame:
-        # The folder of the frame as named, and that folder's parent as named. Resolving the
-        # frames folder first would let a junction there point the rule at another tree.
-        fp = Path(os.path.abspath(args.frame)).parent
-        roots += [fp.resolve(), fp.parent.resolve()]
-    if not roots:
-        sys.exit("Give --frame, or both --video and --time.")
-    out_parent = out.resolve().parent
+    try:
+        for src in (args.frame, args.video):
+            if src and Path(src).resolve() in (out.resolve(), feed_path.resolve()):
+                sys.exit("--out must not be the same file as --frame or --video. Pick another output name.")
+        # Write only inside the episode folder: the folder of --video, or the folder of --frame,
+        # plus that folder's parent only when the frame sits in a frames/ subfolder. Never
+        # create folders.
+        roots = []
+        if args.video:
+            roots.append(Path(os.path.abspath(args.video)).parent.resolve())  # the folder of the name given, link or not
+        if args.frame:
+            # The folder of the frame as named. Resolving the frames folder before taking its
+            # parent would let a junction there point the rule at another tree.
+            fp = Path(os.path.abspath(args.frame)).parent
+            roots.append(fp.resolve())
+            if fp.name == "frames":
+                roots.append(fp.parent.resolve())
+        if not roots:
+            sys.exit("Give --frame, or both --video and --time.")
+        out_parent = out.resolve().parent
+    except (OSError, RuntimeError) as exc:
+        # A symlink loop raises RuntimeError from resolve() on Python 3.9 to 3.12.
+        sys.exit("Cannot resolve a path: %s" % show(str(exc)[:120]))
     if not out_parent.is_dir():
         sys.exit("--out folder does not exist: %s. The script writes into the episode folder and never creates folders." % show(out_parent))
     if not any(out_parent == r or r in out_parent.parents for r in roots):
@@ -208,14 +215,17 @@ def main():
         src_img = Image.open(frame_path, formats=["JPEG", "PNG"])
     except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError) as exc:
         sys.exit("%s is not a JPEG or PNG frame this tool will open (%s)." % (show(frame_path), str(exc)[:120]))
-    with src_img:
-        # Opening reads the header only. Check the shape and the pixel count before decoding.
-        if src_img.width * src_img.height > FRAME_MAX_PIXELS:
-            sys.exit("The frame is %dx%d, which is %d megapixels; a video frame is under %d." % (
-                src_img.width, src_img.height, src_img.width * src_img.height // 1_000_000, FRAME_MAX_PIXELS // 1_000_000))
-        if src_img.width / src_img.height > ASPECT_MAX or src_img.height / src_img.width > ASPECT_MAX:
-            sys.exit("The frame is %dx%d, which is not a video frame." % (src_img.width, src_img.height))
-        base = cover(src_img.convert("RGB"))
+    try:
+        with src_img:
+            # Opening reads the header only. Check the shape and the pixel count before decoding.
+            if src_img.width * src_img.height > FRAME_MAX_PIXELS:
+                sys.exit("The frame is %dx%d, which is %d megapixels; a video frame is under %d." % (
+                    src_img.width, src_img.height, src_img.width * src_img.height // 1_000_000, FRAME_MAX_PIXELS // 1_000_000))
+            if src_img.width / src_img.height > ASPECT_MAX or src_img.height / src_img.width > ASPECT_MAX:
+                sys.exit("The frame is %dx%d, which is not a video frame." % (src_img.width, src_img.height))
+            base = cover(src_img.convert("RGB"))  # decoding happens here; a truncated file fails here
+    except (OSError, ValueError) as exc:
+        sys.exit("%s could not be decoded (%s)." % (show(frame_path), str(exc)[:120]))
     shade = Image.new("RGB", (W, H), (0, 0, 0))
     base = Image.composite(shade, base, gradient(args.side))
 
