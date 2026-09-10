@@ -14,6 +14,7 @@ I want 5 to 8 clips of 15 to 30 seconds in publish order, each with title, descr
 hashtags, tags, and category, plus the episode title, description, tags, category, and the
 cold open. Use markers.txt as leads. Stop and tell me if the sync check fails.
 When check_plan.py reports 0 fail, cut the previews and give me the bottom line.
+Never publish, upload, schedule, or post anything anywhere. Write files only; I click publish.
 ```
 
 If your agent supports skills, `$cutlist` or `/cutlist` plus the same text works.

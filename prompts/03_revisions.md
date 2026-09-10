@@ -7,6 +7,7 @@ Swap one clip:
 Clip 3 in episodes/<id>/clip_plan.json is weak. Replace it with the next-best candidate from
 your rejected list or the captions. Keep the other clips. Update both plan files, re-run
 check_plan.py, re-cut only the new preview.
+Never publish, upload, schedule, or post anything anywhere. Write files only; I click publish.
 ```
 
 Shorten:
