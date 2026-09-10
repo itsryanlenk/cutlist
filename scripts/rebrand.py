@@ -82,6 +82,8 @@ def main():
         real = Path(os.path.realpath(p))
         if real != root_real and root_real not in real.parents:
             continue
+        if os.lstat(p).st_nlink > 1:
+            sys.exit("%s has more than one hard link; rebrand never writes through links. Copy the tree first." % p.relative_to(root))
         data = p.read_bytes()
         try:
             s = data.decode("utf-8")
@@ -93,7 +95,9 @@ def main():
         if new != s:
             touched.append(p.relative_to(root))
             if not dry:
-                p.write_bytes(new.encode("utf-8"))
+                tmp = p.with_name(p.name + ".rebrand-tmp")
+                tmp.write_bytes(new.encode("utf-8"))
+                os.replace(tmp, p)
 
     # Fill brand.json's own placeholders so no bracket text remains anywhere, and mark it applied.
     if not dry:

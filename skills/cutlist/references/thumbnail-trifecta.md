@@ -61,7 +61,7 @@ Record `frame_time` and which side the subject is on. Text goes on the opposite 
 
 ```
 python3 $SKILL/scripts/thumbnail_mockup.py --video "episodes/<id>/episode.mp4" --time <frame_time> \
-  --text "<the words>" --side <left|right> --out episodes/<id>/thumb_mock.png
+  --text "<the words>" --side <left|right> --out "episodes/<id>/thumb_mock.png"
 ```
 
 Open `thumb_mock_feed_320.png` with view_image. That is the size viewers see in the feed.

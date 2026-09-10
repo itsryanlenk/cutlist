@@ -55,7 +55,7 @@ def speakers_summary(speakers):
     """The speaker list for the console: the first 20, then a count."""
     if not speakers:
         return "(none labeled)"
-    head = ", ".join(speakers[:20])
+    head = ", ".join(s[:40] for s in speakers[:20])
     return head if len(speakers) <= 20 else "%s, and %d more (%d total)" % (head, len(speakers) - 20, len(speakers))
 
 

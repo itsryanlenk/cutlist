@@ -30,7 +30,7 @@ import wave
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _common import (FF_IN, commit_target, fmt_mmss, media_path, probe, refuse_link, require_tool,  # noqa: E402
+from _common import (SafeParser, FF_IN, commit_target, fmt_mmss, media_path, probe, refuse_link, require_tool,  # noqa: E402
                      run_writing, show, temp_target, utf8_stdout, write_bytes_safely)
 
 MAX_HOURS_DEFAULT = 6.0  # a 16 kHz mono WAV is about 115 MB per hour beside the creator's video
@@ -118,7 +118,7 @@ def merge_runs(rows, threshold_db, min_gap_s=3.0):
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = SafeParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("video")
     ap.add_argument("--top", type=int, default=25, help="how many loud runs to print")
     ap.add_argument("--window", type=window_arg, default=1.0, help="window size in seconds, 0.1 to 60")

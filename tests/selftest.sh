@@ -19,7 +19,9 @@ step "check_inputs";   if out=$(python3 $S/check_inputs.py $E/episode.mp4 $E/cap
 step "audio_energy";   if out=$(python3 $S/audio_energy.py $E/episode.mp4 --top 5) && echo "$out" | grep -q "02:30"; then ok "loud run at 02:30 found"; else bad "audio_energy"; fi
 step "frames";         python3 $S/frames.py $E/episode.mp4 2:31 --range 2:25 2:45 --step 5 >/dev/null && [ -f $E/frames/contact_sheet.jpg ] && ok "contact sheet" || bad "frames"
 step "check_plan";     python3 $S/check_plan.py $E/clip_plan.json $E/episode.mp4 && ok "plan validates" || bad "check_plan"
-step "cut_previews";   python3 $S/cut_previews.py $E/episode.mp4 $E/clip_plan.json --vertical >/dev/null && [ "$(ls $E/previews/*.mp4 | wc -l)" -ge 10 ] && ok "previews" || bad "cut_previews"
+step "cut_previews";   if python3 $S/cut_previews.py $E/episode.mp4 $E/clip_plan.json --vertical >/dev/null && [ "$(ls $E/previews/*.mp4 | wc -l)" -ge 10 ] \
+  && d=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$(ls $E/previews/cold_open_*.mp4 | grep -v 9x16 | head -1)") \
+  && python3 -c "import sys; d=float(sys.argv[1]); sys.exit(0 if 9.0 <= d <= 10.5 else 1)" "$d"; then ok "previews (cold open ${d}s)"; else bad "cut_previews"; fi
 step "thumbnail";      python3 $S/thumbnail_mockup.py --video $E/episode.mp4 --time 2:31 --text "QUIT VC. GO SOLO." --side right --tag "EP 1" --out $E/thumb_mock.png >/dev/null && [ -f $E/thumb_mock_feed_320.png ] && ok "mockup" || bad "thumbnail_mockup"
 step "vtt parse";      python3 - <<'EOF' && ok "vtt" || bad "vtt"
 import sys; sys.path.insert(0, "skills/cutlist/scripts")

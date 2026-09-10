@@ -10,7 +10,7 @@ Limits come from YouTube's own documentation (see README, "Sources").
 
 Clip rules (this system's rules, not YouTube's):
   duration 15 to 30 s (hard fail under 12 or over 35), no overlaps, clean order,
-  cold open 12 s or less, thumbnail text 4 words or fewer.
+  cold open 10 s or less, thumbnail text 4 words or fewer.
 
 Usage
   python3 scripts/check_plan.py episodes/ep05/clip_plan.json [episodes/ep05/episode.mp4]
@@ -39,7 +39,7 @@ HASHTAG_POLICY_MAX = 60
 HASHTAG_WARN = 5
 CLIP_MIN, CLIP_MAX = 12.0, 35.0
 CLIP_TARGET_MIN, CLIP_TARGET_MAX = 15.0, 30.0
-COLD_OPEN_MAX = 12.0
+COLD_OPEN_MAX = 10.0
 THUMB_WORDS_MAX = 4
 
 fails, warns = [], []
@@ -131,7 +131,7 @@ def check_meta(label, obj):
     cat = str(cat) if isinstance(cat, (str, int)) and not isinstance(cat, bool) else ""
     if cat not in CATEGORIES:
         fail("%s: category_id %r is not a known id (use one of %s)" % (
-            label, cat, ", ".join("%s=%s" % kv for kv in CATEGORIES.items())))
+            label, str(cat)[:60], ", ".join("%s=%s" % kv for kv in CATEGORIES.items())))
 
 
 def report(clips):

@@ -65,7 +65,7 @@ Platform limits (source: YouTube Data API `videos` resource and YouTube Help on 
 | category_id | known YouTube id | fail on unknown |
 
 Clip rules (this skill's rules): duration 15 to 30 s target, 12 to 35 s hard; no overlaps;
-`publish_order` present and unique; `hook_line` present; cold open 12 s or less;
+`publish_order` present and unique; `hook_line` present; cold open 10 s or less;
 thumbnail text 4 words or fewer; all three `trifecta_check` lines present.
 
 A full, validated example lives in `examples/_example/clip_plan.json` at the repo root.

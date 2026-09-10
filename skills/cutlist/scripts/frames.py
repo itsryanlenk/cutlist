@@ -20,7 +20,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _common import (FF_IN, FF_IN_IMG, IMG_OUT, check_source, commit_target, find_font, fmt_mmss, fmt_time,  # noqa: E402
+from _common import (SafeParser, FF_IN, FF_IN_IMG, IMG_OUT, check_source, commit_target, find_font, fmt_mmss, fmt_time,  # noqa: E402
                      media_path, output_dir, parse_time, probe, require_tool, run_writing, show, temp_target,
                      utf8_stdout)
 
@@ -159,7 +159,7 @@ def contact_sheet(frames, times, out_path, cols=4, expect=None):
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = SafeParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("video")
     ap.add_argument("times", nargs="*", help="times like 12:34, 00:12:34.5, or 754.5")
     ap.add_argument("--every", type=float, help="grab one frame every N seconds across the whole video")

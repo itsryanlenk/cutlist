@@ -1321,5 +1321,85 @@ class RoundEight(unittest.TestCase):
             shutil.rmtree(outside, ignore_errors=True)
 
 
+class RoundNine(unittest.TestCase):
+    """Eighth review: rebrand and hard links, argparse messages, message volume, folder rule."""
+
+    def test_rebrand_refuses_a_hard_linked_file(self):
+        import rebrand
+        d = Path(tempfile.mkdtemp())
+        outside = Path(tempfile.mkdtemp())
+        try:
+            (d / "scripts").mkdir()
+            shutil.copy(ROOT / "scripts" / "rebrand.py", d / "scripts" / "rebrand.py")
+            skill_dir = d / "skills" / rebrand.OLD_SLUG
+            skill_dir.mkdir(parents=True)
+            (skill_dir / "SKILL.md").write_bytes(("---\nname: %s\n---\n" % rebrand.OLD_SLUG).encode())
+            victim = outside / "victim.md"
+            victim.write_bytes(("%s lives here\n" % rebrand.OLD_SLUG).encode())
+            os.link(victim, d / "README.md")
+            cfg = {"brand_name": "Demo Brand", "slug": "demo-brand", "author": "A Person",
+                   "github_user": "someone", "homepage": "", "tagline": "keep", "license": "MIT", "year": "2026"}
+            (d / "brand.json").write_text(json.dumps(cfg), encoding="utf-8")
+            r = subprocess.run([PY, str(d / "scripts" / "rebrand.py"), str(d / "brand.json")],
+                               capture_output=True, text=True, cwd=str(d), encoding="utf-8", errors="replace")
+            self.assertNotEqual(r.returncode, 0, r.stdout + r.stderr)
+            self.assertIn(rebrand.OLD_SLUG.encode(), victim.read_bytes(), "rebrand wrote through a hard link")
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+            shutil.rmtree(outside, ignore_errors=True)
+
+    def test_argparse_errors_are_cleaned(self):
+        for script in ("frames.py", "cut_previews.py", "thumbnail_mockup.py", "audio_energy.py"):
+            r = subprocess.run([PY, str(SCRIPTS / script), "--bogus\x1b[31mFORGED SYNC:OK"],
+                               capture_output=True, text=True, encoding="utf-8", errors="replace")
+            self.assertNotEqual(r.returncode, 0, script)
+            self.assertNotIn("\x1b", r.stderr, script)
+            self.assertNotIn(" ", r.stderr, script)
+            self.assertNotIn("\nSYNC:OK", r.stderr, script)
+
+    def test_messages_cap_the_value_they_quote(self):
+        with self.assertRaises(ValueError) as cm:
+            _common.parse_time("x" * 5000)
+        self.assertLess(len(str(cm.exception)), 200)
+        plan = json.loads((ROOT / "examples" / "_example" / "clip_plan.json").read_text(encoding="utf-8"))
+        plan["clips"][0]["category_id"] = "9" * 200_000
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "plan.json"
+            p.write_text(json.dumps(plan), encoding="utf-8")
+            r = subprocess.run([PY, str(SCRIPTS / "check_plan.py"), str(p)],
+                               capture_output=True, text=True, encoding="utf-8", errors="replace")
+        self.assertEqual(r.returncode, 1)
+        self.assertLess(len(r.stdout), 5000)
+
+    def test_cold_open_rule_matches_the_skill(self):
+        # SKILL.md rule 10: the cold open is 10 seconds or less. The validator must say the same.
+        import check_plan
+        self.assertEqual(check_plan.COLD_OPEN_MAX, 10.0)
+
+    def test_speakers_summary_caps_each_label(self):
+        import check_inputs
+        line = check_inputs.speakers_summary(["A" * 300, "Host"])
+        self.assertLess(len(line), 120)
+
+    @unittest.skipIf(WINDOWS, "file symlinks need a privilege on Windows")
+    @unittest.skipUnless(_common.tool_path("ffmpeg"), "ffmpeg not on PATH")
+    def test_thumbnail_folder_rule_uses_the_link_not_its_target(self):
+        with tempfile.TemporaryDirectory() as d:
+            real_dir = Path(d) / "real"
+            real_dir.mkdir()
+            real = real_dir / "real.mp4"
+            subprocess.run([_common.tool_path("ffmpeg"), "-y", "-v", "error", "-f", "lavfi", "-i", "testsrc2=size=320x180:rate=10",
+                            "-t", "1", "-c:v", "libx264", str(real)], check=True, timeout=60)
+            bundle = Path(d) / "bundle"
+            bundle.mkdir()
+            os.symlink(real, bundle / "episode.mp4")
+            r = subprocess.run([PY, str(SCRIPTS / "thumbnail_mockup.py"), "--video", str(bundle / "episode.mp4"),
+                                "--time", "0:00.5", "--text", "HI", "--out", str(bundle / "thumb_mock.png")],
+                               capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60)
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+            self.assertTrue((bundle / "thumb_mock.png").exists())
+            self.assertFalse((real_dir / "thumb_mock.png").exists())
+
+
 if __name__ == "__main__":
     unittest.main()

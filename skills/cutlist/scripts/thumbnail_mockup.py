@@ -29,7 +29,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _common import (FF_IN, IMG_OUT, check_source, commit_target, find_font, media_path, parse_time, probe,  # noqa: E402
+from _common import (SafeParser, FF_IN, IMG_OUT, check_source, commit_target, find_font, media_path, parse_time, probe,  # noqa: E402
                      refuse_link, require_tool, run_writing, show, temp_target, utf8_stdout)
 
 try:
@@ -127,7 +127,7 @@ def fit_text(draw, lines, max_w, max_h):
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = SafeParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--video")
     ap.add_argument("--time", help="time in the video to grab, like 12:40 or 00:12:40.5")
     ap.add_argument("--frame", help="use this image instead of grabbing from the video")
@@ -151,9 +151,9 @@ def main():
     # and its parent (frames/ sits inside the episode folder). Never create folders.
     roots = []
     if args.video:
-        roots.append(Path(args.video).resolve().parent)
+        roots.append(Path(os.path.abspath(args.video)).parent.resolve())  # the folder of the name given, link or not
     if args.frame:
-        fp = Path(args.frame).resolve().parent
+        fp = Path(os.path.abspath(args.frame)).parent.resolve()
         roots += [fp, fp.parent]
     if not roots:
         sys.exit("Give --frame, or both --video and --time.")

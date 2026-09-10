@@ -19,7 +19,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _common import (FF_IN, check_source, commit_target, fmt_mmss, load_plan, media_path, order_number,  # noqa: E402
+from _common import (SafeParser, FF_IN, check_source, commit_target, fmt_mmss, load_plan, media_path, order_number,  # noqa: E402
                      output_dir, parse_time, probe, require_tool, run_writing, show, temp_target, utf8_stdout)
 
 ITEM_LIMIT = 20
@@ -70,7 +70,7 @@ def cut(video, start, end, out, vertical=False):
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = SafeParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("video")
     ap.add_argument("plan")
     ap.add_argument("--vertical", action="store_true", help="also write 9:16 center-crop previews")

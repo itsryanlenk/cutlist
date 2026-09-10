@@ -4,6 +4,7 @@ Every tool in this folder imports from this file.
 Python 3.9 or newer. Standard library only.
 """
 
+import argparse
 import json
 import math
 import os
@@ -99,7 +100,7 @@ def parse_time(text):
     except ValueError:
         m = _TS_RE.match(text)
         if not m:
-            raise ValueError("Bad time value: %r" % text)
+            raise ValueError("Bad time value: %r" % text[:60])
         h = int(m.group(1)[:9]) if m.group(1) else 0
         mnt = int(m.group(2))
         s = int(m.group(3))
@@ -107,9 +108,9 @@ def parse_time(text):
         ms = int(ms_txt.ljust(3, "0"))
         value = h * 3600 + mnt * 60 + s + ms / 1000.0
     if not math.isfinite(value) or value < 0:
-        raise ValueError("Bad time value: %r (must be a finite, non-negative time)" % text)
+        raise ValueError("Bad time value: %r (must be a finite, non-negative time)" % text[:60])
     if value > TIME_MAX_S:
-        raise ValueError("Bad time value: %r (past hour %d)" % (text, TIME_MAX_S // 3600))
+        raise ValueError("Bad time value: %r (past hour %d)" % (text[:60], TIME_MAX_S // 3600))
     return value
 
 
@@ -158,6 +159,14 @@ def _scrub_non_ascii(m):
         elif cat in _DROP_CATEGORIES or cp in _DROP_EXTRA or 0xFE00 <= cp <= 0xFE0F or 0xE0100 <= cp <= 0xE01EF:
             table[cp] = None
     return s.translate(table) if table else s
+
+
+class SafeParser(argparse.ArgumentParser):
+    """argparse, with its own refusals cleaned: "unrecognized arguments" echoes argv, and an
+    argument can be a file name from the bundle."""
+
+    def error(self, message):
+        self.exit(2, "%s: error: %s\n" % (self.prog, show(message)))
 
 
 def show(path):

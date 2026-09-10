@@ -285,3 +285,21 @@ The seventh reviewer found one Medium and two Lows, each now with a unit test:
   at 50 MB before Pillow opens it; every documented command quotes its paths; the tests
   resolve `ffmpeg` and `ffprobe` the way the scripts do; the README says what a local-folder
   plugin install copies.
+
+## 2026-09-09 - Ninth review: hard links in rebrand, argparse, message volume
+
+The eighth reviewer found three Lows and one item to verify on POSIX, each now with a test:
+
+- `rebrand.py` protected its own `brand.json` from links and rewrote every other file in
+  place, so a hard-linked file carried the write outside the tree. It now refuses any file
+  with more than one hard link and writes every file through a temp file and a replace.
+- argparse's own refusal ("unrecognized arguments") echoed the argument raw. Every script
+  now uses a parser whose refusals pass through the same cleaning as every other message.
+- A bad `category_id` or time value was quoted in full in a `FAIL` line; a 5 MB plan could
+  put 5 MB into the console. Quoted values are cut at 60 characters.
+- The thumbnail's episode-folder rule resolved a symlinked video to its target's folder and
+  named that folder in its refusal. It now uses the folder of the name it was given, the same
+  rule as every other output.
+- Smaller: the validator's cold-open limit is 10 seconds, the number `SKILL.md` states
+  (it had been 12); speaker labels on the console are cut at 40 characters; the one unquoted
+  `--out` in the thumbnail reference is quoted; the self-test checks a preview's duration.
