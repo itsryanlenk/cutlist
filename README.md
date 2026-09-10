@@ -212,6 +212,11 @@ Run `bash tests/selftest.sh` before and after any change to a script. Standard l
 Pillow excepted. Keep `SKILL.md` short. No real episode, caption file, or channel profile in
 a commit, ever. `CONTRIBUTING.md` has the rest.
 
+## Thanks
+
+The idea came from watching [@buildwithmaya](https://x.com/buildwithmaya)'s content. Seeing
+her help creators is what made me build this, and make it free for everyone.
+
 ## License
 
 MIT. See `LICENSE`.
