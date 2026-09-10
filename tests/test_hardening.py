@@ -1539,5 +1539,48 @@ class RoundEleven(unittest.TestCase):
                 os.chdir(old)
 
 
+class EleventhReviewGaps(unittest.TestCase):
+    """Two items the eleventh review listed as tested and were not, found 2026-09-10 by a red
+    team reading the record against this file: an unreadable caption file and a symlink loop
+    are clean exits. Both need POSIX. chmod 0 does not deny a read on Windows, and symlinks
+    there need a privilege, so Ubuntu CI is where these run."""
+
+    @unittest.skipIf(WINDOWS, "chmod 0 does not deny a read on Windows")
+    @unittest.skipIf(hasattr(os, "geteuid") and os.geteuid() == 0, "root reads anything")
+    @unittest.skipUnless(_common.tool_path("ffmpeg") and FFPROBE, "ffmpeg and ffprobe not on PATH")
+    def test_check_inputs_refuses_an_unreadable_caption_cleanly(self):
+        with tempfile.TemporaryDirectory() as d:
+            video = Path(d) / "episode.mp4"
+            subprocess.run([_common.tool_path("ffmpeg"), "-y", "-v", "error", "-f", "lavfi", "-i", "testsrc2=size=320x180:rate=10",
+                            "-t", "1", "-c:v", "libx264", str(video)], check=True, timeout=60)
+            srt = _write(d, SRT_HEAD + "hello\n", "episode.srt")
+            srt.chmod(0)
+            try:
+                r = subprocess.run([PY, str(SCRIPTS / "check_inputs.py"), str(video), str(srt)],
+                                   capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60)
+            finally:
+                srt.chmod(0o600)
+            self.assertNotEqual(r.returncode, 0)
+            self.assertNotIn("Traceback", r.stderr)
+            self.assertFalse((Path(d) / "transcript_compact.txt").exists())
+
+    @unittest.skipIf(WINDOWS, "symlinks need a privilege on Windows")
+    @unittest.skipUnless(HAVE_PIL, "Pillow not installed")
+    def test_thumbnail_exits_cleanly_on_a_symlink_loop(self):
+        from PIL import Image
+        with tempfile.TemporaryDirectory() as d:
+            frame = Path(d) / "frame.png"
+            Image.new("RGB", (640, 360), (90, 90, 90)).save(frame)
+            loop = Path(d) / "loop"
+            os.symlink(loop, loop)  # points at itself: resolve() raises RuntimeError on 3.9 to 3.12, OSError on 3.13+
+            r = subprocess.run([PY, str(SCRIPTS / "thumbnail_mockup.py"), "--frame", str(frame), "--text", "HI",
+                                "--out", str(loop / "thumb_mock.png")],
+                               capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60)
+            self.assertNotEqual(r.returncode, 0)
+            self.assertNotIn("Traceback", r.stderr)
+            self.assertIn("Cannot resolve", r.stderr)
+            self.assertEqual(list(Path(d).glob(".cutlist-*")), [])
+
+
 if __name__ == "__main__":
     unittest.main()
