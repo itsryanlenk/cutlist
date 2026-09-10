@@ -23,6 +23,7 @@ Usage
 
 import argparse
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -56,7 +57,15 @@ def load_font(size):
     return ImageFont.load_default(), "default (install a bold TTF for a real preview)"
 
 
+TEXT_MAX_CHARS = 60  # four words; anything longer never fits at feed size anyway
+TAG_MAX_CHARS = 20
+_HEX_RE = re.compile(r"^#?[0-9a-fA-F]{6}$")
+
+
 def hex_to_rgb(h):
+    """'#RRGGBB' or 'RRGGBB' to a tuple. Anything else is a ValueError, never a traceback."""
+    if not _HEX_RE.match(h or ""):
+        raise ValueError("--accent must be a six-digit hex color like #FFD400, got %r" % (h[:20] if h else h))
     h = h.lstrip("#")
     return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
 
@@ -161,7 +170,17 @@ def main():
     except (OSError, ValueError) as exc:
         sys.exit(str(exc))
 
+    if len(args.text) > TEXT_MAX_CHARS:
+        sys.exit("--text is %d characters; the limit is %d. Four words, one idea." % (len(args.text), TEXT_MAX_CHARS))
+    if args.tag and len(args.tag) > TAG_MAX_CHARS:
+        sys.exit("--tag is %d characters; the limit is %d." % (len(args.tag), TAG_MAX_CHARS))
+    try:
+        accent = hex_to_rgb(args.accent)
+    except ValueError as exc:
+        sys.exit(str(exc))
     words = args.text.strip().split()
+    if not words:
+        sys.exit("--text is empty.")
     if len(words) > 4:
         print("WARN: %d words. 4 or fewer reads at feed size. Shorten it." % len(words))
 

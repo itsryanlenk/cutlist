@@ -917,5 +917,48 @@ class RoundFour(unittest.TestCase):
             shutil.rmtree(d, ignore_errors=True)
 
 
+class RoundFive(unittest.TestCase):
+    """Caps on the two arguments that size an image in memory, and argument validation."""
+
+    def test_width_and_cols_are_bounded(self):
+        # 80 tiles at a 20,000-pixel width is a multi-gigabyte contact sheet. The caps keep
+        # the sheet under a few megapixels whatever the arguments say.
+        import argparse
+        import frames
+        for bad in ("20000", "0", "-5", "abc"):
+            with self.assertRaises(argparse.ArgumentTypeError, msg=bad):
+                frames.width_arg(bad)
+        self.assertEqual(frames.width_arg("640"), 640)
+        for bad in ("0", "11", "x"):
+            with self.assertRaises(argparse.ArgumentTypeError, msg=bad):
+                frames.cols_arg(bad)
+        self.assertEqual(frames.cols_arg("4"), 4)
+
+    @unittest.skipUnless(HAVE_PIL, "Pillow not installed")
+    def test_thumbnail_refuses_a_bad_accent_and_long_text(self):
+        from PIL import Image
+        with tempfile.TemporaryDirectory() as d:
+            frame = Path(d) / "frame.png"
+            Image.new("RGB", (64, 36), (90, 90, 90)).save(frame)
+            out = Path(d) / "thumb_mock.png"
+
+            def run(*args):
+                return subprocess.run([PY, str(SCRIPTS / "thumbnail_mockup.py"), "--frame", str(frame), "--out", str(out), *args],
+                                      capture_output=True, text=True, encoding="utf-8", errors="replace")
+            for accent in ("zz", "#12345678", "#ggg", "rgb(1,2,3)", ""):
+                r = run("--text", "HI", "--accent", accent)
+                self.assertNotEqual(r.returncode, 0, accent)
+                self.assertNotIn("Traceback", r.stderr, accent)
+            r = run("--text", "A" * 5000)
+            self.assertNotEqual(r.returncode, 0)
+            self.assertNotIn("Traceback", r.stderr)
+            r = run("--text", "HI", "--tag", "X" * 500)
+            self.assertNotEqual(r.returncode, 0)
+            self.assertNotIn("Traceback", r.stderr)
+            r = run("--text", "HI", "--accent", "#FF4081", "--tag", "EP 5")
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+            self.assertTrue(out.exists())
+
+
 if __name__ == "__main__":
     unittest.main()

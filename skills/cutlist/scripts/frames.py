@@ -27,15 +27,22 @@ FRAME_LIMIT = 80
 FONT_CANDIDATES = ["DejaVuSans-Bold.ttf", "arialbd.ttf", "Arial Bold.ttf", "LiberationSans-Bold.ttf"]
 
 
-def positive_int(text):
-    """argparse type: a whole number of at least 1."""
-    try:
-        v = int(text)
-    except ValueError:
-        raise argparse.ArgumentTypeError("%r is not a whole number" % text)
-    if v < 1:
-        raise argparse.ArgumentTypeError("must be 1 or more")
-    return v
+def bounded_int(lo, hi):
+    """argparse type factory: a whole number from lo to hi."""
+    def parse(text):
+        try:
+            v = int(text)
+        except ValueError:
+            raise argparse.ArgumentTypeError("%r is not a whole number" % text)
+        if not lo <= v <= hi:
+            raise argparse.ArgumentTypeError("must be from %d to %d" % (lo, hi))
+        return v
+    return parse
+
+
+positive_int = bounded_int(1, 10 ** 9)
+width_arg = bounded_int(160, 1920)  # a tile wider than 1080p is never needed to judge a frame
+cols_arg = bounded_int(1, 10)       # with the 80-frame cap, the sheet stays under a few megapixels
 
 
 def build_times(explicit, duration, every=None, rng=None, step=2.0, limit=FRAME_LIMIT):
@@ -128,8 +135,8 @@ def main():
     ap.add_argument("--every", type=float, help="grab one frame every N seconds across the whole video")
     ap.add_argument("--range", nargs=2, metavar=("START", "END"), help="grab frames between two times")
     ap.add_argument("--step", type=float, default=2.0, help="seconds between frames when using --range")
-    ap.add_argument("--width", type=positive_int, default=640)
-    ap.add_argument("--cols", type=positive_int, default=4)
+    ap.add_argument("--width", type=width_arg, default=640, help="tile width in pixels, 160 to 1920")
+    ap.add_argument("--cols", type=cols_arg, default=4, help="tiles per row, 1 to 10")
     args = ap.parse_args()
     utf8_stdout()
 
