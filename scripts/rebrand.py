@@ -33,9 +33,18 @@ def main():
     if len(sys.argv) < 2:
         sys.exit(__doc__)
     cfg_path = Path(sys.argv[1])
-    cfg = json.loads(cfg_path.read_bytes().decode("utf-8"))
     dry = "--dry-run" in sys.argv
     root = Path(__file__).resolve().parent.parent
+    root_real = Path(os.path.realpath(root))
+    # brand.json is rewritten below, so it gets the same rules as every other file: a regular
+    # file, not a link, and really inside this repository.
+    st = os.lstat(cfg_path)
+    if os.path.islink(cfg_path) or not os.path.isfile(cfg_path) or st.st_nlink > 1:
+        sys.exit("%s must be a plain file inside the repository, not a link." % cfg_path)
+    cfg_real = Path(os.path.realpath(cfg_path))
+    if root_real != cfg_real.parent and root_real not in cfg_real.parents:
+        sys.exit("%s is outside the repository." % cfg_path)
+    cfg = json.loads(cfg_path.read_bytes().decode("utf-8"))
 
     if cfg.get("_applied"):
         sys.exit("brand.json says the rebrand was already applied. It runs once; start from a clean copy to redo it.")
@@ -61,7 +70,6 @@ def main():
         pairs.append(("Transcript-first clip planning, metadata, and thumbnail mockups for video podcasts.", tagline))
 
     touched = []
-    root_real = Path(os.path.realpath(root))
     for p in sorted(root.rglob("*")):
         if any(part in SKIP_DIRS for part in p.parts):
             continue
@@ -92,7 +100,9 @@ def main():
         cfg["homepage"] = cfg.get("homepage", "").replace("[GITHUB USER]", gh).replace("[SLUG]", slug)
         cfg["_comment"] = "Applied on this repo. Do not run rebrand.py again."
         cfg["_applied"] = True
-        cfg_path.write_bytes((json.dumps(cfg, indent=2) + "\n").encode("utf-8"))
+        tmp = cfg_path.with_name(cfg_path.name + ".tmp")
+        tmp.write_bytes((json.dumps(cfg, indent=2) + "\n").encode("utf-8"))
+        os.replace(tmp, cfg_path)
 
     old_dir = root / "skills" / OLD_SLUG
     new_dir = root / "skills" / slug

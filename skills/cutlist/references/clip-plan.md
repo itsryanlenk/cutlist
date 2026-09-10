@@ -19,7 +19,7 @@ a rule mentions a guest or a face, it applies when there is one.
 ## Step 1. Check inputs
 
 ```
-python3 $SKILL/scripts/check_inputs.py episodes/<id>/episode.mp4 episodes/<id>/captions.srt
+python3 $SKILL/scripts/check_inputs.py "episodes/<id>/episode.mp4" "episodes/<id>/captions.srt"
 ```
 
 If it prints `SYNC: FAIL`, stop. Tell the creator: "Captions and video are from different exports.
@@ -41,7 +41,7 @@ While reading, mark any moment that has one of these:
 Then run the audio pass and add any loud run you had not marked:
 
 ```
-python3 $SKILL/scripts/audio_energy.py episodes/<id>/episode.mp4 --top 25
+python3 $SKILL/scripts/audio_energy.py "episodes/<id>/episode.mp4" --top 25
 ```
 
 Loud runs are leads. A laugh with nothing said is not a clip.
@@ -73,7 +73,7 @@ in `trim_notes`. Never over 35.
 Check the picture:
 
 ```
-python3 $SKILL/scripts/frames.py episodes/<id>/episode.mp4 <start of each keeper> --cols 4
+python3 $SKILL/scripts/frames.py "episodes/<id>/episode.mp4" <start of each keeper> --cols 4
 ```
 
 Open `frames/contact_sheet.jpg` with view_image. When a person is on camera, reject a clip if
@@ -116,8 +116,8 @@ back to back. The cold open moment can also be clip 1.
 ## Step 8. Validate and preview
 
 ```
-python3 $SKILL/scripts/check_plan.py episodes/<id>/clip_plan.json episodes/<id>/episode.mp4
-python3 $SKILL/scripts/cut_previews.py episodes/<id>/episode.mp4 episodes/<id>/clip_plan.json
+python3 $SKILL/scripts/check_plan.py "episodes/<id>/clip_plan.json" "episodes/<id>/episode.mp4"
+python3 $SKILL/scripts/cut_previews.py "episodes/<id>/episode.mp4" "episodes/<id>/clip_plan.json"
 ```
 
 Fix every FAIL. Read every WARN and either fix it or explain it in the plan. Then report:

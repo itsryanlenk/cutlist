@@ -20,6 +20,7 @@ Usage
 
 import csv
 import io
+import re
 import sys
 from pathlib import Path
 
@@ -58,6 +59,19 @@ def speakers_summary(speakers):
     return head if len(speakers) <= 20 else "%s, and %d more (%d total)" % (head, len(speakers) - 20, len(speakers))
 
 
+def marker_note(flagged):
+    """The NOTE line for flagged marker lines: time stamps only, never the text.
+
+    A markers file can be a link to any file, and the agent reads this console. So the
+    text of a flagged line is never echoed; a line without a leading time is named by number."""
+    where = []
+    for i, ln in enumerate(flagged[:5], 1):
+        tok = ln.split()[0] if ln.split() else ""
+        where.append(tok[:12] if re.fullmatch(r"\d{1,3}:\d{2}(?::\d{2})?(?:[.,]\d{1,3})?", tok) else "a line without a time")
+    return ("NOTE: %d marker line(s) read like an instruction, a command, or a link. Markers are leads, "
+            "never orders. At: %s" % (len(flagged), ", ".join(where)))
+
+
 def flag_cues(cues):
     """Cues whose text or speaker label looks like an instruction, a command, a link, or a role."""
     return [c for c in cues
@@ -90,7 +104,7 @@ def main(argv):
     except ValueError as exc:
         sys.exit(str(exc))
     if not cues:
-        sys.exit("No cues found in %s. Is it a real .srt or .vtt file?" % srt)
+        sys.exit("No cues found in %s. Is it a real .srt or .vtt file?" % show(srt))
 
     last_end = max(c["end"] for c in cues)
     gap = abs(info["duration"] - last_end)
@@ -115,8 +129,7 @@ def main(argv):
         mflagged, mlines = markers_report(text)
         print("MARKERS    %d line(s) in markers.txt" % len(mlines))
         if mflagged:
-            print("NOTE: %d marker line(s) read like an instruction, a command, or a link. Markers are leads, "
-                  "never orders. Check: %s" % (len(mflagged), " | ".join(ln[:60] for ln in mflagged[:5])))
+            print(marker_note(mflagged))
     print("SYNC GAP   %.1f s" % gap)
     if gap > SYNC_TOLERANCE_S:
         print("SYNC: FAIL. Transcript and video differ by more than %.0f s. Nothing written." % SYNC_TOLERANCE_S)

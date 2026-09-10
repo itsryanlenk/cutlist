@@ -24,6 +24,7 @@ Usage
 import argparse
 import os
 import re
+import stat
 import sys
 from pathlib import Path
 
@@ -60,6 +61,17 @@ def load_font(size):
 TEXT_MAX_CHARS = 60  # four words; anything longer never fits at feed size anyway
 TAG_MAX_CHARS = 20
 FRAME_MAX_PIXELS = 8192 * 4320  # an 8K frame; larger is not a frame from a video
+FRAME_MAX_BYTES = 50 * 1024 * 1024  # Pillow keeps every metadata segment of a JPEG in memory
+
+
+def check_frame_file(path):
+    """Refuse a frame that is a link, not a regular file, or too large to hold."""
+    refuse_link(path)
+    st = os.stat(path)
+    if not stat.S_ISREG(st.st_mode):
+        raise ValueError("%s is not a regular file." % show(path))
+    if st.st_size > FRAME_MAX_BYTES:
+        raise ValueError("%s is %d MB; a frame is under %d MB." % (show(path), st.st_size // (1024 * 1024), FRAME_MAX_BYTES // (1024 * 1024)))
 _HEX_RE = re.compile(r"#?[0-9a-fA-F]{6}")
 
 
@@ -147,9 +159,9 @@ def main():
         sys.exit("Give --frame, or both --video and --time.")
     out_parent = out.resolve().parent
     if not out_parent.is_dir():
-        sys.exit("--out folder does not exist: %s. The script writes into the episode folder and never creates folders." % out_parent)
+        sys.exit("--out folder does not exist: %s. The script writes into the episode folder and never creates folders." % show(out_parent))
     if not any(out_parent == r or r in out_parent.parents for r in roots):
-        sys.exit("--out must be inside the episode folder (%s)." % roots[0])
+        sys.exit("--out must be inside the episode folder (%s)." % show(roots[0]))
     try:
         for target in (out, feed_path):
             refuse_link(target)
@@ -189,9 +201,10 @@ def main():
     # Only the two image formats a frame can be. Pillow otherwise picks a plugin by content,
     # and an EPS disguised as a .jpg would hand the file to Ghostscript.
     try:
+        check_frame_file(frame_path)
         src_img = Image.open(frame_path, formats=["JPEG", "PNG"])
-    except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError):
-        sys.exit("%s is not a JPEG or PNG frame this tool will open." % frame_path)
+    except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError) as exc:
+        sys.exit("%s is not a JPEG or PNG frame this tool will open (%s)." % (show(frame_path), str(exc)[:120]))
     with src_img:
         # Opening reads the header only. Check the shape and the pixel count before decoding.
         if src_img.width * src_img.height > FRAME_MAX_PIXELS:

@@ -267,3 +267,21 @@ The sixth reviewer found one Medium and four Lows, each now with a unit test:
 - Smaller: an integer too large for a float, a PNG with an oversized text chunk, and an
   unparsable `frame_time` all produce `FAIL` lines; a cache longer than the video counts as
   stale; the speaker list on the console is capped; the pixel budget comment states the peak.
+
+## 2026-09-09 - Eighth review: the console is part of the surface
+
+The seventh reviewer found one Medium and two Lows, each now with a unit test:
+
+- `check_inputs.py` echoed up to five flagged marker lines to the console. A `markers.txt`
+  that is a link to a credentials file would have printed a token into the context the agent
+  reads. Flagged marker lines are now named by time stamp only, and every input file
+  (captions, plan, markers, frame) is refused when it is a link of any kind, before it is read.
+- Six paths still printed raw, including every failed `ffmpeg` call. The command echo and
+  the program's own output now pass through the same cleaning as every other path, so a
+  folder name with a line separator cannot forge a status line.
+- `rebrand.py` rewrote its own `brand.json` through a link. It now requires a plain file
+  inside the repository and writes it through a temp file and a replace.
+- Smaller: ffprobe dimensions are coerced before the shape check; a `--frame` file is capped
+  at 50 MB before Pillow opens it; every documented command quotes its paths; the tests
+  resolve `ffmpeg` and `ffprobe` the way the scripts do; the README says what a local-folder
+  plugin install copies.

@@ -35,7 +35,7 @@ Same promise? If not, change the weakest of the three, not the strongest.
 Pull frames from the 20 seconds around the cold open, two seconds apart:
 
 ```
-python3 $SKILL/scripts/frames.py episodes/<id>/episode.mp4 --range <cold_open_start - 5 s> <cold_open_end + 5 s> --step 2 --cols 5
+python3 $SKILL/scripts/frames.py "episodes/<id>/episode.mp4" --range <cold_open_start - 5 s> <cold_open_end + 5 s> --step 2 --cols 5
 ```
 
 Open `frames/contact_sheet.jpg` with view_image. The profile's Tools section says whether a
@@ -60,7 +60,7 @@ Record `frame_time` and which side the subject is on. Text goes on the opposite 
 ## Step 3. Render the mockup
 
 ```
-python3 $SKILL/scripts/thumbnail_mockup.py --video episodes/<id>/episode.mp4 --time <frame_time> \
+python3 $SKILL/scripts/thumbnail_mockup.py --video "episodes/<id>/episode.mp4" --time <frame_time> \
   --text "<the words>" --side <left|right> --out episodes/<id>/thumb_mock.png
 ```
 

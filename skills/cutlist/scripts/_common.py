@@ -53,6 +53,8 @@ def check_source(width, height):
         raise ValueError("The video has no readable picture size. Is it a video?")
     if width / height > ASPECT_MAX or height / width > ASPECT_MAX:
         raise ValueError("The video is %dx%d, which is not a video shape." % (width, height))
+
+
 # ffmpeg's image muxer expands %d in an output path (so a folder named ep%d would send a
 # frame to ep1/). -update 1 makes it write one file to the literal path instead.
 IMG_OUT = ["-update", "1"]
@@ -225,6 +227,7 @@ def read_bounded(path, limit, what):
     the size alone is not a bound: the type is checked and the read itself is capped.
     """
     p = Path(path)
+    refuse_link(p)  # a caption, plan, or marker file reached through a link is someone else's file
     st = p.stat()
     if not stat.S_ISREG(st.st_mode):
         raise ValueError("%s is not a regular file. %s must be a plain file." % (show(p), what))
@@ -490,12 +493,22 @@ def run(cmd, quiet=False, timeout=RUN_TIMEOUT_S):
     try:
         proc = subprocess.run(cmd, capture_output=True, encoding="utf-8", errors="replace", timeout=timeout)
     except subprocess.TimeoutExpired:
-        sys.exit("Command timed out after %d s: %s" % (timeout, os.path.basename(cmd[0])))
+        sys.exit("Command timed out after %d s: %s" % (timeout, show(os.path.basename(cmd[0]))))
     if proc.returncode != 0:
         if not quiet:
-            sys.stderr.write(proc.stderr)
-        sys.exit("Command failed: %s" % " ".join(cmd))
+            # The program's own message can quote a file name; a name can carry a line break.
+            sys.stderr.write("\n".join(show(line) for line in proc.stderr.splitlines()) + "\n")
+        sys.exit("Command failed: %s" % " ".join(show(c) for c in cmd))
     return proc.stdout
+
+
+def as_int(value):
+    """A positive int from an ffprobe field, or None. ffprobe writes ints, but a field is a field."""
+    try:
+        v = int(value)
+    except (TypeError, ValueError):
+        return None
+    return v if v > 0 else None
 
 
 def media_path(path):
@@ -523,7 +536,7 @@ def probe(video):
     try:
         data = json.loads(out)
     except ValueError:
-        sys.exit("ffprobe returned no readable information for %s" % video)
+        sys.exit("ffprobe returned no readable information for %s" % show(video))
     fmt = data.get("format", {}) if isinstance(data, dict) else {}
     refused = refused_formats(fmt.get("format_name", ""))
     if refused:
@@ -539,8 +552,8 @@ def probe(video):
     streams = data.get("streams", []) if isinstance(data, dict) else []
     for st in streams:
         if isinstance(st, dict) and st.get("codec_type") == "video" and info["width"] is None:
-            info["width"] = st.get("width")
-            info["height"] = st.get("height")
+            info["width"] = as_int(st.get("width"))
+            info["height"] = as_int(st.get("height"))
             rate = str(st.get("avg_frame_rate", "0/1"))
             try:
                 num, den = rate.split("/")

@@ -42,7 +42,10 @@ prompts cover any agent that reads files. MIT licensed. Standard-library Python 
 | No skill support (chat only) | paste a prompt from `prompts/` | the prompt tells the agent where to read |
 
 `bash install.sh --all` installs every path at once. Add `--global` for every project on the
-machine. Windows: `.\install.ps1 -Agent all` (or one agent name).
+machine. Windows: `.\install.ps1 -Agent all` (or one agent name). A Claude Code plugin
+install from GitHub clones this repository; an install from a local folder copies that
+folder as it sits on disk into Claude's plugin cache, so keep your episodes outside the
+clone or install from GitHub.
 
 Discovery paths were checked against each vendor's documentation on 2026-09-09; the sources
 are in `docs/DECISIONS.md`. Windsurf had no first-party page that day. Paths drift between
