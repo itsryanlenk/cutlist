@@ -43,7 +43,11 @@ for them into your profile. Nothing after that names a tool you do not have.
 | `prompts/04_retitle_backlog.md` | A batch of already-published videos needs consistent titles |
 
 ## Three things that will stop a run, on purpose
-- SYNC: FAIL. The video and transcript came from different exports. Re-download both from the same place.
+- SYNC: FAIL, captions past the end of the video. The two files are from different exports.
+  Re-download both from the same place.
+- SYNC: FAIL, video past the last word. Either your video has an outro or end card with nobody
+  speaking (say so, and the agent re-runs with `--silent-tail`), or the files are from different
+  exports. Watch the end of your video and tell the agent which it is.
 - A missing tool. The agent names it. Install it with the line above, then paste prompt 00 again.
 - check_plan.py FAIL. A title over 100 characters, a clip outside 12 to 35 seconds, a bad category.
   The agent fixes these itself before it says done. If it says done with a FAIL, tell it to run the check again.

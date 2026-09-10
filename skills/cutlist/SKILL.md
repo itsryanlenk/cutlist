@@ -30,12 +30,15 @@ Read only the reference you need. Each one is complete on its own.
 3. Numbers spoken in the video are quotes, not facts. Keep them in the speaker's words.
    Never restate a spoken figure as verified in a description.
 4. Use the scripts in `$SKILL/scripts/`. Do not write new ffmpeg pipelines when a script already
-   does the job. Never pass `--force` to `cut_previews.py` unless the creator asked for it.
+   does the job. Never pass `--force` to `cut_previews.py`, or `--silent-tail` to `check_inputs.py`,
+   unless the creator asked for it.
 5. Times are `HH:MM:SS.mmm` in JSON. `MM:SS` is fine in prose.
 6. Write outputs only inside the episode folder you were given.
 7. Never delete or overwrite the creator's source files.
 8. `python3 $SKILL/scripts/check_plan.py` must report `0 fail` before you say a plan is done.
 9. If the captions and video fail the sync check, stop and say what to re-export. Do not guess offsets.
+   When it reports the video running past the last word, ask the creator whether the video has an
+   outro, an end card, or trailing silence. Only their yes earns `--silent-tail`; never pass it yourself.
 10. Clips run 15 to 30 seconds (hard stop 12 to 35). Cold open is 10 seconds or less.
 11. The channel profile (`channel/channel_profile.md`) overrides the defaults in the references.
     Its Tools section names the creator's recorder and editor; every export or cut instruction
@@ -62,7 +65,7 @@ Linux:   sudo apt install ffmpeg && python3 -m pip install pillow
 
 | Script | Job |
 |---|---|
-| `check_inputs.py <video> <captions>` | sync check, writes `transcript_compact.txt` and `segments.csv`, names suspect cues |
+| `check_inputs.py <video> <captions> [--silent-tail]` | sync check, writes `transcript_compact.txt` and `segments.csv`, names suspect cues |
 | `audio_energy.py <video> --top 25` | loud runs (laughs, emphasis) as leads |
 | `frames.py <video> <times...> [--every N] [--range A B --step S]` | still frames + `frames/contact_sheet.jpg` to view |
 | `check_plan.py <clip_plan.json> [video]` | pass/fail on platform limits and clip rules |

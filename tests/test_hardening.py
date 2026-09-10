@@ -1582,5 +1582,82 @@ class EleventhReviewGaps(unittest.TestCase):
             self.assertEqual(list(Path(d).glob(".cutlist-*")), [])
 
 
+def _srt(*spans):
+    """An .srt whose cues run over the given (start_s, end_s) spans."""
+    out = []
+    for i, (a, b) in enumerate(spans, 1):
+        def stamp(t):
+            return "%02d:%02d:%06.3f" % (int(t) // 3600, (int(t) % 3600) // 60, t % 60)
+        out.append("%d\n%s --> %s\nline %d\n" % (i, stamp(a).replace(".", ","), stamp(b).replace(".", ","), i))
+    return "\n".join(out)
+
+
+def _video(path, seconds):
+    subprocess.run([_common.tool_path("ffmpeg"), "-y", "-v", "error", "-f", "lavfi",
+                    "-i", "testsrc2=size=160x90:rate=10", "-t", str(seconds), "-c:v", "libx264", str(path)],
+                   check=True, timeout=120)
+
+
+@unittest.skipUnless(_common.tool_path("ffmpeg") and FFPROBE, "ffmpeg and ffprobe not on PATH")
+class SyncCheckTailGap(unittest.TestCase):
+    """The sync check must tell a silent tail apart from a mismatched export.
+
+    Found 2026-09-10 by a red team reading the ad copy against the code. `check_inputs.py`
+    compared the last cue end to the video duration and printed ONE cause, "one file is the
+    raw recording and the other is an edited export". A video with an outro or an end card
+    longer than the tolerance, with nobody speaking over it, is a correctly matched pair and
+    was failed with that wrong cause. The reader re-exports twice and the second export is
+    identical to the first.
+
+    Captions running PAST the end of the video stays a hard stop with no way through: those
+    cue times cannot be cut from that file, whatever the reason.
+    """
+
+    def _run(self, d, video_s, last_cue_end, extra=()):
+        video = Path(d) / "episode.mp4"
+        _video(video, video_s)
+        srt = Path(d) / "captions.srt"
+        srt.write_text(_srt((0.5, 1.0), (last_cue_end - 0.5, last_cue_end)), encoding="utf-8")
+        return subprocess.run([PY, str(SCRIPTS / "check_inputs.py"), str(video), str(srt), *extra],
+                              capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120)
+
+    def test_matched_pair_still_passes(self):
+        with tempfile.TemporaryDirectory() as d:
+            r = self._run(d, 10, 9.0)
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+            self.assertIn("SYNC: OK", r.stdout)
+            self.assertTrue((Path(d) / "transcript_compact.txt").exists())
+
+    def test_captions_running_past_the_video_are_a_hard_stop(self):
+        with tempfile.TemporaryDirectory() as d:
+            r = self._run(d, 2, 11.0)
+            self.assertNotEqual(r.returncode, 0)
+            self.assertIn("past the end", r.stdout + r.stderr)
+            self.assertFalse((Path(d) / "transcript_compact.txt").exists())
+
+    def test_silent_tail_flag_does_not_rescue_an_overrun(self):
+        with tempfile.TemporaryDirectory() as d:
+            r = self._run(d, 2, 11.0, extra=("--silent-tail",))
+            self.assertNotEqual(r.returncode, 0)
+            self.assertFalse((Path(d) / "transcript_compact.txt").exists())
+
+    def test_a_silent_tail_stop_names_the_tail_as_a_cause(self):
+        with tempfile.TemporaryDirectory() as d:
+            r = self._run(d, 12, 1.0)
+            out = r.stdout + r.stderr
+            self.assertNotEqual(r.returncode, 0)
+            self.assertIn("--silent-tail", out)  # the way through has to be named where it fails
+            self.assertRegex(out.lower(), r"outro|end card|silence|silent")
+            self.assertFalse((Path(d) / "transcript_compact.txt").exists())
+
+    def test_silent_tail_flag_lets_a_matched_pair_through(self):
+        with tempfile.TemporaryDirectory() as d:
+            r = self._run(d, 12, 1.0, extra=("--silent-tail",))
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+            self.assertTrue((Path(d) / "transcript_compact.txt").exists())
+            self.assertTrue((Path(d) / "segments.csv").exists())
+            self.assertIn("TAIL", r.stdout)  # the accepted gap is printed, never silently swallowed
+
+
 if __name__ == "__main__":
     unittest.main()

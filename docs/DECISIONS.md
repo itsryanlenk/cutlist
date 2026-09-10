@@ -18,12 +18,20 @@ covers agents that read that file. `CLAUDE.md` imports `AGENTS.md`. `prompts/` c
 with no skill support. Discovery paths were current on 2026-09-09 and will drift; the README says so.
 
 **D3. Transcript first.** The agent reads the whole compact transcript before any signal
-processing. Loudness (`audio_energy.py`) and frames (`frames.py`) confirm; they never pick.
+processing, and every candidate comes off the text. Loudness (`audio_energy.py`) and frames
+(`frames.py`) are read only after that list exists: they score one row of the six in
+`references/clip-plan.md` and they confirm a pick. Neither one puts a candidate on the list.
 Reason: a laugh with nothing said is not a clip, and a face on camera does not make a point.
+*(Wording sharpened 2026-09-10. It used to read "they never pick", which a reader could set
+against the Energy row in the rubric. The behaviour did not change; the sentence now says
+which part of scoring energy is allowed to touch.)*
 
 **D4. Same-source rule with a hard stop.** Captions and video must come from the same export.
 `check_inputs.py` compares the last cue time to the video duration and fails over 3 seconds.
 Guessing an offset produces confident, wrong cuts. Stopping produces one re-download.
+*(Superseded in part on 2026-09-10 by D17, which keeps the tolerance and splits the verdict by
+the direction of the gap. The version above failed a correctly matched pair whenever the video
+carried an outro.)*
 
 **D5. Numbers stay quotes.** A figure spoken in the episode is the speaker's claim. It goes in
 titles only in their words and never as a verified fact in a description. This is a
@@ -335,6 +343,34 @@ bundle content, or escaped the episode folder without the agent itself typing th
 - Smaller: a truncated image, an unreadable caption file, and a symlink loop on Python 3.9
   to 3.12 are clean exits; temp paths are absolute so ffmpeg never reads a leading name as a
   protocol; SECURITY.md says what the boundary is when the episode folder is itself a link.
+
+**D17. The sync verdict depends on which way the gap runs.** Added 2026-09-10 after a red team
+read the launch copy against the code and found that `check_inputs.py` failed a correctly
+matched export. It computed `gap = abs(duration - last_cue_end)` and printed one cause: "one
+file is the raw recording and the other is an edited export." A video with an outro, an end
+card, or trailing silence longer than the tolerance is a matched pair, and it was failed with
+that wrong cause, so the creator re-exports and gets an identical file. The two directions mean
+different things and are now handled separately:
+
+- **Captions past the end of the video** stays a hard stop with no way through. Those cue times
+  are not in that file, so nothing can be cut at them whatever caused the mismatch.
+- **Video past the last word** stops and names both causes, the silent tail and the mismatched
+  export, and tells the creator how to say which it is. `--silent-tail` proceeds and prints the
+  accepted gap on its own line, so an accepted tail is never swallowed quietly.
+
+The flag is the creator's answer about their own file, and it is the one thing the agent cannot
+see from here. `SKILL.md` rules 4 and 9 forbid the agent passing it on its own judgement, the
+same way rule 4 forbids `--force` on `cut_previews.py`. The 3 second tolerance did not move.
+Five unit tests in `tests/test_hardening.py` (class `SyncCheckTailGap`) pin all of it, including
+that the flag does not rescue an overrun and that a matched pair still passes untouched.
+
+**D18. A safety rule that a doc claims is everywhere has to be everywhere.** Added 2026-09-10.
+The README said the never-publish rule was "in the skill, in every prompt, and in the
+validator's design" and D9 said "repeated in every prompt". No prompt stated it, and the
+validator has nothing to enforce, since a plan is a file. Rather than soften the claim, the rule
+went into all five prompts, which is the path used by agents with no skill support and the last
+place a safety rule should depend on a second file being read. The README's "validator's design"
+clause was dropped because nothing backed it.
 
 **D16. The exit rule for security review is impact, not label.** Ten adversarial rounds ran
 before release. Rounds one to three found Highs a hostile export bundle could use against a

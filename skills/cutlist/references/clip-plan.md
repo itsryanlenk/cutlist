@@ -22,8 +22,17 @@ a rule mentions a guest or a face, it applies when there is one.
 python3 $SKILL/scripts/check_inputs.py "episodes/<id>/episode.mp4" "episodes/<id>/captions.srt"
 ```
 
-If it prints `SYNC: FAIL`, stop. Tell the creator: "Captions and video are from different exports.
-Export both from the same place (both raw, or both from the edited timeline)." Do not continue.
+If it prints `SYNC: FAIL`, stop and read which way the gap runs.
+
+- **"The captions run N s past the end of the video"**: tell the creator the two files are from
+  different exports and to export both from the same place (both raw, or both from the edited
+  timeline). There is no way past this one. Those cue times are not in this file.
+- **"The video runs N s past the last word"**: ask the creator one question. Does the video have an
+  outro, an end card, or silence after the last thing anybody says? If they say yes, re-run with
+  `--silent-tail` and carry on. If they say no, it is the mismatched-export case above.
+
+Never pass `--silent-tail` on your own judgement, and never to get past a failing check. It is the
+creator's answer about their own file, and it is the one thing here you cannot see.
 
 Read `episodes/<id>/transcript_compact.txt` end to end. It is short enough. Do not skim.
 
@@ -37,6 +46,10 @@ While reading, mark any moment that has one of these:
 - A direct instruction to the viewer ("do this before you...").
 - A quotable phrase (something the host reacts to or repeats).
 - Visible disagreement or surprise between host and guest.
+
+Every candidate on this list comes off the transcript. Run the audio pass next, and use it to
+check the list you already have rather than to build one: a loud run with nothing said under it
+is not a candidate, whatever the energy says.
 
 Then run the audio pass and add any loud run you had not marked:
 
