@@ -22,6 +22,8 @@ import array
 import csv
 import io
 import math
+import os
+import stat
 import operator
 import sys
 import wave
@@ -35,12 +37,31 @@ MAX_HOURS_DEFAULT = 6.0  # a 16 kHz mono WAV is about 115 MB per hour beside the
 
 
 def cache_ok(wav):
-    """True when a cached WAV opens and has frames. Anything else is stale, whatever its mtime."""
+    """True only for a regular file with the exact shape this script writes: 16 kHz, mono, 16-bit.
+
+    A planted file with a valid header and a 1 Hz sample rate would otherwise turn every
+    sample into a row of energy.csv. Anything else is stale, whatever its mtime.
+    """
     try:
+        st = os.stat(wav)
+        if not stat.S_ISREG(st.st_mode):
+            return False
         with wave.open(str(wav), "rb") as wf:
-            return wf.getnframes() > 0
+            return (wf.getframerate() == 16000 and wf.getnchannels() == 1
+                    and wf.getsampwidth() == 2 and wf.getnframes() > 0)
     except (wave.Error, EOFError, OSError):
         return False
+
+
+def window_arg(text):
+    """argparse type: window length in seconds, 0.1 to 60."""
+    try:
+        v = float(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError("%r is not a number" % text)
+    if not math.isfinite(v) or not 0.1 <= v <= 60:
+        raise argparse.ArgumentTypeError("must be from 0.1 to 60 seconds")
+    return v
 
 
 def extract_wav(video, wav, max_hours):
@@ -97,7 +118,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("video")
     ap.add_argument("--top", type=int, default=25, help="how many loud runs to print")
-    ap.add_argument("--window", type=float, default=1.0, help="window size in seconds")
+    ap.add_argument("--window", type=window_arg, default=1.0, help="window size in seconds, 0.1 to 60")
     ap.add_argument("--max-hours", type=float, default=MAX_HOURS_DEFAULT,
                     help="refuse media longer than this (default %.0f h); raise it on purpose for a marathon" % MAX_HOURS_DEFAULT)
     args = ap.parse_args()

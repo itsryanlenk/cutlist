@@ -26,14 +26,14 @@ if [ -z "$SLUG" ] || [ ! -f "$SRC/SKILL.md" ]; then
   echo "No skill found under $HERE/skills/ (expected skills/<slug>/SKILL.md). Nothing installed." >&2
   exit 1
 fi
-TARGET_ROOT="$(pwd)"; GLOBAL=0; LINK=0; AGENTS=()
+TARGET_ROOT="$(pwd -P)"; GLOBAL=0; LINK=0; AGENTS=()
 while [ $# -gt 0 ]; do
   case "$1" in
     --codex|--claude|--cursor|--gemini|--copilot) AGENTS+=("${1#--}") ;;
     --all) AGENTS=(codex claude cursor gemini copilot) ;;
     --global) GLOBAL=1 ;;
     --link) LINK=1 ;;
-    --into) shift; TARGET_ROOT="$(cd "$1" && pwd)" ;;
+    --into) shift; TARGET_ROOT="$(cd "$1" && pwd -P)" ;;
     *) echo "unknown option $1"; exit 1 ;;
   esac; shift
 done
@@ -54,7 +54,10 @@ for a in "${AGENTS[@]}"; do
   dest="$base/$SLUG"
   [ "$dest" != "$base" ] && [ "$dest" != "$base/" ] || { echo "refusing to touch $base" >&2; exit 1; }
   rm -rf "$dest"
-  if [ $LINK -eq 1 ]; then ln -s "$SRC" "$dest"; echo "linked  $dest -> $SRC"
+  if [ $LINK -eq 1 ]; then
+    ln -s "$SRC" "$dest"
+    # Git Bash on Windows copies instead of linking unless symlinks are enabled; say which happened.
+    if [ -L "$dest" ]; then echo "linked  $dest -> $SRC"; else echo "copied  $SRC -> $dest (this shell cannot make symlinks; edits here will not show up live)"; fi
   else cp -R "$SRC" "$dest"; echo "copied  $SRC -> $dest"; fi
 done
 echo "Done. Restart your agent so it re-scans skills. Invoke with \$$SLUG (Codex) or /$SLUG (Claude Code), or just describe the task."

@@ -21,7 +21,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _common import (FF_IN, FF_IN_IMG, IMG_OUT, commit_target, find_font, fmt_mmss, fmt_time, media_path,  # noqa: E402
-                     output_dir, parse_time, probe, require_tool, run_writing, temp_target, utf8_stdout)
+                     output_dir, parse_time, probe, require_tool, run_writing, show, temp_target, utf8_stdout)
 
 FRAME_LIMIT = 80
 FONT_CANDIDATES = ["DejaVuSans-Bold.ttf", "arialbd.ttf", "Arial Bold.ttf", "LiberationSans-Bold.ttf"]
@@ -42,7 +42,33 @@ def bounded_int(lo, hi):
 
 positive_int = bounded_int(1, 10 ** 9)
 width_arg = bounded_int(160, 1920)  # a tile wider than 1080p is never needed to judge a frame
-cols_arg = bounded_int(1, 10)       # with the 80-frame cap, the sheet stays under a few megapixels
+cols_arg = bounded_int(1, 10)
+ASPECT_MAX = 8.0                    # wider or taller than this is not a video
+SHEET_MAX_PIXELS = 60_000_000       # all tiles plus the sheet: about 180 MB of RGB at the very most
+
+
+def check_source(width, height):
+    """Refuse a source with no picture or with a shape no video has."""
+    if not width or not height:
+        raise ValueError("The video has no readable picture size. Is it a video?")
+    if width / height > ASPECT_MAX or height / width > ASPECT_MAX:
+        raise ValueError("The video is %dx%d, which is not a video shape." % (width, height))
+
+
+def tile_size(width, height, tile_w):
+    """Tile dimensions when the longer side is scaled to tile_w, both even for the encoder."""
+    if width >= height:
+        tw, th = tile_w, round(tile_w * height / width)
+    else:
+        tw, th = round(tile_w * width / height), tile_w
+    return max(2, tw - tw % 2), max(2, th - th % 2)
+
+
+def check_budget(n, tw, th):
+    """Refuse before the first frame is written when the tiles would not fit in memory."""
+    if n * tw * th > SHEET_MAX_PIXELS:
+        raise ValueError("%d frames at %dx%d is %d megapixels; the limit is %d. Lower --width or take fewer frames." % (
+            n, tw, th, n * tw * th // 1_000_000, SHEET_MAX_PIXELS // 1_000_000))
 
 
 def build_times(explicit, duration, every=None, rng=None, step=2.0, limit=FRAME_LIMIT):
@@ -85,14 +111,16 @@ def build_times(explicit, duration, every=None, rng=None, step=2.0, limit=FRAME_
     return times
 
 
-def grab(video, t, out_path, width=640):
+def grab(video, t, out_path, tw, th):
     tmp = temp_target(out_path)
     run_writing(["ffmpeg", "-y", "-v", "error", "-ss", "%.3f" % t, *FF_IN, "-i", media_path(video), "-frames:v", "1",
-                 "-vf", "scale=%d:-2" % width, "-q:v", "3", *IMG_OUT, str(tmp)], tmp)
+                 "-vf", "scale=%d:%d" % (tw, th), "-q:v", "3", *IMG_OUT, str(tmp)], tmp)
     commit_target(tmp, out_path)
 
 
-def contact_sheet(frames, times, out_path, cols=4):
+def contact_sheet(frames, times, out_path, cols=4, expect=None):
+    """Tile the frames into one image. `expect` is the (w, h) every tile must have; a tile
+    that grew between the grab and the sheet is not ours and is refused."""
     try:
         from PIL import Image, ImageDraw, ImageFont
     except ImportError:
@@ -107,9 +135,15 @@ def contact_sheet(frames, times, out_path, cols=4):
                      *IMG_OUT, str(out_path)], out_path)
         return "ffmpeg (no time labels; install Pillow for labels: python3 -m pip install pillow)"
 
-    tiles = [Image.open(f, formats=["JPEG"]).convert("RGB") for f in frames]
+    tiles = []
+    for f in frames:
+        with Image.open(f, formats=["JPEG"]) as im:
+            if expect and (im.width > expect[0] + 2 or im.height > expect[1] + 2):
+                raise ValueError("%s is %dx%d, larger than the tile this script wrote" % (show(f), im.width, im.height))
+            tiles.append(im.convert("RGB"))
     tw, th = tiles[0].size
     rows = (len(tiles) + cols - 1) // cols
+    check_budget(rows * cols, tw, th)
     sheet = Image.new("RGB", (cols * tw, rows * th), (20, 20, 20))
     draw = ImageDraw.Draw(sheet)
     font_path = find_font(FONT_CANDIDATES)
@@ -144,7 +178,8 @@ def main():
     video = Path(args.video)
     if not video.exists():
         sys.exit("File not found: %s" % video)
-    duration = probe(video)["duration"]
+    info = probe(video)
+    duration = info["duration"]
 
     try:
         times = build_times(args.times, duration, every=args.every, rng=args.range, step=args.step)
@@ -152,21 +187,24 @@ def main():
         sys.exit(str(exc))
 
     try:
+        check_source(info["width"], info["height"])
+        tw, th = tile_size(info["width"], info["height"], args.width)
+        check_budget(len(times), tw, th)
         out_dir = output_dir(video, "frames")
         frames = []
         for t in times:
             name = "f_%s.jpg" % fmt_time(t).replace(":", "-")
             p = out_dir / name
-            grab(video, t, p, args.width)
+            grab(video, t, p, tw, th)
             frames.append(p)
-            print("frame %s -> %s" % (fmt_mmss(t), p))
+            print("frame %s -> %s" % (fmt_mmss(t), show(p)))
         sheet = out_dir / "contact_sheet.jpg"
         tmp = temp_target(sheet)
-        how = contact_sheet(frames, times, tmp, args.cols)
+        how = contact_sheet(frames, times, tmp, args.cols, (tw, th))
         commit_target(tmp, sheet)
     except (OSError, ValueError) as exc:
         sys.exit(str(exc))
-    print("WROTE %s (%s). Open it with view_image to inspect." % (sheet, how))
+    print("WROTE %s (%s). Open it with view_image to inspect." % (show(sheet), how))
 
 
 if __name__ == "__main__":

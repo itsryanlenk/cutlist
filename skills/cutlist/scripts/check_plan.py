@@ -114,15 +114,18 @@ def check_meta(label, obj):
         warn("%s: no tags" % label)
 
     hashtags = text_list(label, obj, "hashtags")
-    for h in hashtags:
-        if not re.match(r"^#[^\s#]+$", str(h)):
-            fail("%s: bad hashtag %r (must start with # and contain no spaces)" % (label, h))
     if len(hashtags) > HASHTAG_POLICY_MAX:
+        # The count first, one line: a plan with twenty thousand hashtags gets one FAIL, not twenty thousand.
         fail("%s: %d hashtags; over %d and YouTube ignores all of them" % (label, len(hashtags), HASHTAG_POLICY_MAX))
-    elif len(hashtags) > HASHTAG_WARN:
-        warn("%s: %d hashtags; 3 to 5 is the working rule" % (label, len(hashtags)))
-    elif not hashtags:
-        warn("%s: no hashtags" % label)
+    else:
+        bad = [h for h in hashtags if not re.match(r"^#[^\s#]+$", str(h))]
+        if bad:
+            fail("%s: %d bad hashtag(s), e.g. %s (must start with # and contain no spaces)" % (
+                label, len(bad), ", ".join(repr(str(h)[:30]) for h in bad[:5])))
+        if len(hashtags) > HASHTAG_WARN:
+            warn("%s: %d hashtags; 3 to 5 is the working rule" % (label, len(hashtags)))
+        elif not hashtags:
+            warn("%s: no hashtags" % label)
 
     cat = obj.get("category_id", "")
     cat = str(cat) if isinstance(cat, (str, int)) and not isinstance(cat, bool) else ""

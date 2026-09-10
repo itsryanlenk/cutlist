@@ -16,8 +16,8 @@ $ErrorActionPreference = "Stop"
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 # Exactly one skill folder ships under skills\. Refuse to run unless it is real: an empty slug
 # would make the destination the skills root itself, and removing that deletes every installed skill.
-$skillDir = Get-ChildItem -Directory (Join-Path $here "skills") -ErrorAction SilentlyContinue | Select-Object -First 1
-if (-not $skillDir -or -not (Test-Path (Join-Path $skillDir.FullName "SKILL.md") -PathType Leaf)) {
+$skillDir = Get-ChildItem -Directory -LiteralPath (Join-Path $here "skills") -ErrorAction SilentlyContinue | Select-Object -First 1
+if (-not $skillDir -or -not (Test-Path -LiteralPath (Join-Path $skillDir.FullName "SKILL.md") -PathType Leaf)) {
   Write-Host "No skill found under $here\skills\ (expected skills\<slug>\SKILL.md). Nothing installed."
   exit 1
 }
@@ -34,17 +34,18 @@ foreach ($a in $agents) {
   }
   $base = if ($Global) { Join-Path $HOME $dir } else { Join-Path $Into $dir }
   New-Item -ItemType Directory -Force -Path $base | Out-Null
+  # -LiteralPath throughout: a folder name with [ or ] is a path, never a wildcard.
   $dest = Join-Path $base $slug
-  if (Test-Path $dest) {
-    $item = Get-Item $dest -Force
+  if (Test-Path -LiteralPath $dest) {
+    $item = Get-Item -LiteralPath $dest -Force
     if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) {
       # A junction or symlink: remove the link itself, never the folder it points to.
       [IO.Directory]::Delete($dest)
     } else {
-      Remove-Item -Recurse -Force $dest
+      Remove-Item -LiteralPath $dest -Recurse -Force
     }
   }
-  Copy-Item -Recurse $src $dest
+  Copy-Item -LiteralPath $src -Destination $dest -Recurse
   Write-Host "copied  $src -> $dest"
 }
 Write-Host "Done. Restart your agent so it re-scans skills."

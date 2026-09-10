@@ -24,7 +24,8 @@ Cutlist is a set of Python scripts (standard library plus Pillow) that an AI cod
 agent runs on a creator's laptop. The scripts call `ffmpeg` and `ffprobe` on a local video
 file and read a caption file (`.srt` or `.vtt`) exported from a recorder. They make no
 network calls, hold no credentials, have no account, send no telemetry, and never publish.
-Two installers copy one folder into an agent's skill path. Everything else in the repository
+Two installers copy one folder into an agent's skill path (or symlink it, with `--link`
+on macOS and Linux). Everything else in the repository
 is Markdown that the agent reads.
 
 The trust boundary is the episode folder. The video and the captions inside it are untrusted

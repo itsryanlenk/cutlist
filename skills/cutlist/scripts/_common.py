@@ -32,13 +32,16 @@ ORDER_MAX = 999                        # publish_order names a file
 TIME_MAX_S = 100 * 3600                # no clip lives past hour 100; larger values feed float tricks
 RUN_TIMEOUT_S = 900                    # the longest legitimate ffmpeg call is a six-hour audio extract
 
-# What ffmpeg and ffprobe may open. The format whitelist is checked before a demuxer reads
-# a byte, so a playlist, an index, or a script named like a video is refused up front; the
-# protocol whitelist keeps anything inside a file from reaching the network or another
-# protocol. probe() checks the reported format name as a second layer.
+# What ffmpeg and ffprobe may open. The format whitelist is checked after format detection
+# and before the header is parsed, so a playlist, an index, or a script named like a video
+# is refused up front; the protocol whitelist keeps anything inside a file from reaching
+# the network or another protocol. probe() checks the reported format name as a second layer.
 MEDIA_FORMATS = "mov,mp4,m4a,3gp,3g2,mj2,matroska,webm,avi,mpegts,mpeg,mxf,asf,flv,wav,aiff,mp3,aac,flac,ogg"
 FF_IN = ["-format_whitelist", MEDIA_FORMATS, "-protocol_whitelist", "file"]
-FF_IN_IMG = ["-format_whitelist", "image2,png_pipe,jpeg_pipe,mjpeg", "-protocol_whitelist", "file"]
+# Our own frame tiles. -pattern_type none stops the image demuxer from expanding a %d in
+# the path into a sequence and reading a sibling folder's files.
+FF_IN_IMG = ["-format_whitelist", "image2,png_pipe,jpeg_pipe,mjpeg", "-protocol_whitelist", "file",
+             "-pattern_type", "none"]
 # ffmpeg's image muxer expands %d in an output path (so a folder named ep%d would send a
 # frame to ep1/). -update 1 makes it write one file to the literal path instead.
 IMG_OUT = ["-update", "1"]
@@ -130,17 +133,23 @@ _DROP_EXTRA = {0x034F, 0x115F, 0x1160, 0x3164, 0xFFA0}
 
 
 def _scrub_non_ascii(m):
-    out = []
-    for ch in m.group():
+    # Decide once per distinct character, then translate in C: a 50 MB run of one letter
+    # costs the run twice, never a list of fifty million one-character strings.
+    s = m.group()
+    table = {}
+    for ch in set(s):
         cp = ord(ch)
         cat = unicodedata.category(ch)
         if cat in ("Zl", "Zp"):
-            out.append(" ")
-            continue
-        if cat in _DROP_CATEGORIES or cp in _DROP_EXTRA or 0xFE00 <= cp <= 0xFE0F or 0xE0100 <= cp <= 0xE01EF:
-            continue
-        out.append(ch)
-    return "".join(out)
+            table[cp] = " "
+        elif cat in _DROP_CATEGORIES or cp in _DROP_EXTRA or 0xFE00 <= cp <= 0xFE0F or 0xE0100 <= cp <= 0xE01EF:
+            table[cp] = None
+    return s.translate(table) if table else s
+
+
+def show(path):
+    """A path as printable text: a bidi override in a folder name never reaches the console."""
+    return clean_text(str(path))
 
 
 def clean_text(text):
@@ -362,9 +371,20 @@ def temp_target(path):
 
 
 def commit_target(tmp, path):
-    """Move a finished temp file onto path. The old entry is unlinked, never written into."""
-    refuse_link(path)
-    os.replace(str(tmp), str(path))
+    """Move a finished temp file onto path. The old entry is unlinked, never written into.
+
+    When the move fails (a directory or a read-only file under that name), the temp file is
+    removed too, so a failure never leaves a copy of the output under a random name.
+    """
+    try:
+        refuse_link(path)
+        os.replace(str(tmp), str(path))
+    except BaseException:
+        try:
+            Path(tmp).unlink()
+        except OSError:
+            pass
+        raise
 
 
 def run_writing(cmd, tmp):
@@ -471,8 +491,15 @@ def probe(video):
     """Return {"duration", "width", "height", "fps"} for a media file.
 
     Refuses playlist and stream-index formats (HLS, DASH, concat, SDP): a text file with a
-    video's name can point those demuxers at any other local file.
+    video's name can point those demuxers at any other local file. Refuses anything that is
+    not a regular file, so a device or a pipe cannot hold ffprobe open.
     """
+    try:
+        st = os.stat(media_path(video))
+    except OSError as exc:
+        sys.exit("Cannot read %s: %s" % (show(video), exc.strerror or exc))
+    if not stat.S_ISREG(st.st_mode):
+        sys.exit("%s is not a regular file. The video must be a plain file." % show(video))
     out = run([
         "ffprobe", "-v", "error", "-print_format", "json",
         "-show_format", "-show_streams", *FF_IN, media_path(video),
@@ -485,7 +512,7 @@ def probe(video):
     refused = refused_formats(fmt.get("format_name", ""))
     if refused:
         sys.exit("Refusing %s: ffprobe reads it as a playlist, index, or script (%s), which can pull in other "
-                 "files. Point the scripts at the media file itself." % (video, ",".join(sorted(refused))))
+                 "files. Point the scripts at the media file itself." % (show(video), ",".join(sorted(refused))))
     try:
         duration = float(fmt.get("duration", 0.0))
     except (TypeError, ValueError):

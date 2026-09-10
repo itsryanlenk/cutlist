@@ -220,3 +220,27 @@ good, and two Lows plus eight smaller items, each now with a unit test:
   repository's own `skills/`; SKILL.md rule 4 says never to pass `--force` unasked.
 - The format whitelist wording in SECURITY.md now says what it does: refusal after
   detection and before the header is parsed, with the accepted containers listed.
+
+## 2026-09-09 - Sixth review: the source's shape, the tool's own cache, and the leftovers
+
+The fifth reviewer (the first run after a review proof crashed the machine, so every proof
+now runs small) found two Mediums and a tail of smaller items, each now with a unit test:
+
+- A tall or wide source made every contact-sheet tile follow its shape, so a 64x2048 video
+  at the default width gave 13-megapixel tiles. `frames.py` refuses a source with a shape no
+  video has, scales tiles by the longer side, and budgets the total pixels of tiles and
+  sheet before the first frame is written.
+- A planted `episode.16k.wav` with a valid header and a 1 Hz sample rate turned every sample
+  into a row of `energy.csv`. The cache is accepted only when it is a regular file with the
+  exact shape this script writes (16 kHz, mono, 16-bit), and `--window` is bounded.
+- Cleaning a large non-ASCII caption built a list of one-character strings; it now decides
+  once per distinct character and translates in C. A failed move onto a directory or a
+  read-only file left the finished temp file; it is removed. Image inputs carry
+  `-pattern_type none` so the demuxer never expands a `%d` in a folder name. A frame is
+  refused by pixel count before it is decoded. Bad hashtags are reported as a count with five
+  examples. A device or a pipe is refused before ffprobe opens it.
+- `markers.txt` is read and reported by `check_inputs.py` the way captions are: cleaned,
+  with instruction-like lines named, and rule 13 now covers every file in the episode
+  folder. The first-run prompt tells the agent to stop on a failure instead of editing the
+  skill. The installers use physical paths and literal paths, and say when a link fell back
+  to a copy.

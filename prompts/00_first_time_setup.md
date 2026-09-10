@@ -12,5 +12,5 @@ Read skills/cutlist/SKILL.md.
 3. Then run the setup workflow in skills/cutlist/references/setup-profile.md
    and write channel/channel_profile.md from my answers. I will tell you which recorder
    and which editor I use; write the export and cut steps for those tools into the profile.
-Do not modify files under skills/ unless a script fails on this machine.
+If a script fails, show me the error and stop. Do not edit anything under skills/.
 ```

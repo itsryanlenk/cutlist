@@ -59,12 +59,13 @@ def load_font(size):
 
 TEXT_MAX_CHARS = 60  # four words; anything longer never fits at feed size anyway
 TAG_MAX_CHARS = 20
-_HEX_RE = re.compile(r"^#?[0-9a-fA-F]{6}$")
+FRAME_MAX_PIXELS = 8192 * 4320  # an 8K frame; larger is not a frame from a video
+_HEX_RE = re.compile(r"#?[0-9a-fA-F]{6}")
 
 
 def hex_to_rgb(h):
     """'#RRGGBB' or 'RRGGBB' to a tuple. Anything else is a ValueError, never a traceback."""
-    if not _HEX_RE.match(h or ""):
+    if not _HEX_RE.fullmatch(h or ""):
         raise ValueError("--accent must be a six-digit hex color like #FFD400, got %r" % (h[:20] if h else h))
     h = h.lstrip("#")
     return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
@@ -188,9 +189,13 @@ def main():
     # and an EPS disguised as a .jpg would hand the file to Ghostscript.
     try:
         src_img = Image.open(frame_path, formats=["JPEG", "PNG"])
-    except (UnidentifiedImageError, OSError):
-        sys.exit("%s is not a JPEG or PNG frame." % frame_path)
+    except (UnidentifiedImageError, OSError, Image.DecompressionBombError):
+        sys.exit("%s is not a JPEG or PNG frame this tool will open." % frame_path)
     with src_img:
+        # Opening reads the header only. Check the shape and the pixel count before decoding.
+        if src_img.width * src_img.height > FRAME_MAX_PIXELS:
+            sys.exit("The frame is %dx%d, which is %d megapixels; a video frame is under %d." % (
+                src_img.width, src_img.height, src_img.width * src_img.height // 1_000_000, FRAME_MAX_PIXELS // 1_000_000))
         if src_img.width / src_img.height > ASPECT_MAX or src_img.height / src_img.width > ASPECT_MAX:
             sys.exit("The frame is %dx%d, which is not a video frame." % (src_img.width, src_img.height))
         base = cover(src_img.convert("RGB"))
